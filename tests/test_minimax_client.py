@@ -17,7 +17,7 @@ def _recommendation(sample_fixture, data_store, radar_config):
         config=radar_config,
         report_date=sample_fixture.report_date,
         readmes=sample_fixture.readmes,
-        enhancer=FixtureEnhancer(),
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
         generated_at=sample_fixture.generated_at,
     ).report
     return report.recommendations[0]
@@ -60,6 +60,8 @@ def test_minimax_receives_only_public_repository_context(
     sent = user_payload["repositories"][0]
 
     assert captured["model"] == "MiniMax-M3"
+    assert "禁止多条摘要复用同一结尾" in captured["messages"][0]["content"]
+    assert "不能统一写成阅读 README" in captured["messages"][0]["content"]
     assert set(sent) == {"full_name", "description", "language", "topics", "readme_excerpt"}
     assert "score" not in captured["messages"][1]["content"]
     assert "recommendation_reason" not in captured["messages"][1]["content"]

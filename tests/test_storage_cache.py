@@ -24,7 +24,7 @@ def test_json_facts_rebuild_sqlite_and_saved_view(
         config=radar_config,
         report_date=sample_fixture.report_date,
         readmes=sample_fixture.readmes,
-        enhancer=FixtureEnhancer(),
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
         generated_at=sample_fixture.generated_at,
     )
     selected = result.report.recommendations[0]
@@ -58,7 +58,7 @@ def test_rebuild_maps_legacy_fixture_save_without_rewriting_event(
         config=radar_config,
         report_date=sample_fixture.report_date,
         readmes=sample_fixture.readmes,
-        enhancer=FixtureEnhancer(),
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
         generated_at=sample_fixture.generated_at,
     )
     event = create_feedback_event(

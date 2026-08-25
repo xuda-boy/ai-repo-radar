@@ -24,6 +24,8 @@
       "latest_release_tag": "v0.9.2",
       "latest_release_at": "2026-08-22T09:00:00Z",
       "readme": "LangGraph is a low-level orchestration framework for long-running, stateful agents. Install the Python package and follow the official quickstart.",
+      "summary_zh": "LangGraph 是面向长时间运行、具备状态的 AI Agent 编排框架，重点解决持久化执行、人工介入和失败恢复。适合需要精细控制工作流与状态生命周期的代理应用。",
+      "quick_start": "Python · 先运行官方 Quickstart，理解 State、节点与边，再尝试持久化和人工介入。",
       "star_history": [["2026-08-18", 11640], ["2026-08-19", 11720], ["2026-08-20", 11834], ["2026-08-21", 11961], ["2026-08-22", 12118], ["2026-08-23", 12336], ["2026-08-24", 12586]]
     },
     {
@@ -46,6 +48,8 @@
       "latest_release_tag": "v1.4.0",
       "latest_release_at": "2026-08-23T07:00:00Z",
       "readme": "vLLM provides high-throughput model serving and an OpenAI-compatible API. Start with the installation guide and the official serving example.",
+      "summary_zh": "vLLM 是以高吞吐和显存效率为核心的大模型推理服务引擎，提供 OpenAI 兼容接口与连续批处理能力。适合部署重视并发性能和硬件利用率的模型服务。",
+      "quick_start": "Python / GPU · 先按官方安装指南确认硬件兼容，再启动 OpenAI 兼容服务并发送一个最小请求。",
       "star_history": [["2026-08-18", 5700], ["2026-08-19", 5970], ["2026-08-20", 6180], ["2026-08-21", 6496], ["2026-08-22", 6814], ["2026-08-23", 7230], ["2026-08-24", 7914]]
     },
     {
@@ -66,6 +70,8 @@
       "license_spdx": "MIT",
       "discovery_sources": ["fixture-exploration"],
       "readme": "DeepEval provides metrics and test cases for evaluating LLM applications. Install the package and run the introductory evaluation example.",
+      "summary_zh": "DeepEval 把 LLM 应用的质量要求写成可重复执行的测试用例与评测指标，可覆盖 RAG、Agent 和回答质量。适合在本地开发与 CI 中持续验证模型行为。",
+      "quick_start": "Python · 选择一个内置评测指标，为单条模型回答编写并运行首个测试用例。",
       "star_history": [["2026-08-18", 60], ["2026-08-19", 82], ["2026-08-20", 120], ["2026-08-21", 161], ["2026-08-22", 205], ["2026-08-23", 243], ["2026-08-24", 268]]
     },
     {
@@ -86,6 +92,8 @@
       "license_spdx": "MIT",
       "discovery_sources": ["fixture-interest"],
       "readme": "Langfuse connects LLM traces with evaluations, metrics, prompts, and datasets. Use the local Docker Compose setup to inspect a sample trace.",
+      "summary_zh": "Langfuse 将 LLM 调用链路、评测、提示词版本和数据集集中到一套开源平台中，便于定位质量、延迟与成本问题。适合为线上 AI 应用补齐可观测性和持续评估。",
+      "quick_start": "Docker · 用 Compose 启动本地实例，再接入一个已有 LLM 调用并查看首条 Trace。",
       "star_history": [["2026-08-18", 5410], ["2026-08-19", 5480], ["2026-08-20", 5575], ["2026-08-21", 5680], ["2026-08-22", 5790], ["2026-08-23", 5884], ["2026-08-24", 5988]]
     },
     {
@@ -106,6 +114,8 @@
       "license_spdx": "MIT",
       "discovery_sources": ["fixture-interest"],
       "readme": "LlamaIndex provides data connectors, indexes, retrieval, and agent workflows. Install the Python package and follow the starter tutorial.",
+      "summary_zh": "LlamaIndex 提供数据连接、索引、检索和 Agent 工作流组件，帮助应用把文档与业务数据接入大模型。适合构建 RAG、文档问答和知识型代理。",
+      "quick_start": "Python · 按 Starter Tutorial 接入一份小文档，完成索引、检索和一次带来源的问答。",
       "star_history": [["2026-08-18", 5020], ["2026-08-19", 5060], ["2026-08-20", 5110], ["2026-08-21", 5170], ["2026-08-22", 5235], ["2026-08-23", 5298], ["2026-08-24", 5352]]
     },
     {
@@ -126,6 +136,8 @@
       "license_spdx": "MIT",
       "discovery_sources": ["fixture-quality"],
       "readme": "Ollama packages local model execution behind a CLI and API. Install a release, pull a supported model, and run the first chat command.",
+      "summary_zh": "Ollama 用统一的命令行和本地 API 简化模型下载、运行与管理，让开发者无需搭建复杂推理服务即可在电脑上调用大模型。适合本地原型、离线实验和私有数据场景。",
+      "quick_start": "CLI · 安装后拉取一个体积较小的模型，先完成一次命令行对话，再测试本地 HTTP API。",
       "star_history": [["2026-08-18", 9050], ["2026-08-19", 9120], ["2026-08-20", 9190], ["2026-08-21", 9275], ["2026-08-22", 9360], ["2026-08-23", 9440], ["2026-08-24", 9520]]
     },
     {
@@ -146,6 +158,8 @@
       "license_spdx": "MIT",
       "discovery_sources": ["fixture-quality"],
       "readme": "Promptfoo runs versioned LLM test cases locally and in CI. Install the CLI, create a configuration file, and run the first evaluation.",
+      "summary_zh": "Promptfoo 使用声明式配置批量比较提示词、模型和 RAG 或 Agent 流程，并提供红队与漏洞测试。适合把效果评测和安全回归纳入日常开发与 CI。",
+      "quick_start": "TypeScript / CLI · 创建最小配置，放入两个提示词或模型组合，运行一次本地对比评测。",
       "star_history": [["2026-08-18", 2870], ["2026-08-19", 2900], ["2026-08-20", 2930], ["2026-08-21", 2964], ["2026-08-22", 2997], ["2026-08-23", 3031], ["2026-08-24", 3060]]
     },
     {
@@ -166,6 +180,8 @@
       "license_spdx": "Apache-2.0",
       "discovery_sources": ["fixture-exploration"],
       "readme": "Phoenix helps trace and evaluate LLM applications and agents. Install the package and launch the local observability quickstart.",
+      "summary_zh": "Phoenix 是面向 LLM 与 Agent 的开源可观测和评测平台，可追踪调用链、分析实验并排查检索或模型输出问题。适合本地调试和持续质量监控。",
+      "quick_start": "Python · 启动本地 Phoenix，导入或生成一段 LLM Trace，再查看调用链和评测结果。",
       "star_history": [["2026-08-18", 1880], ["2026-08-19", 1920], ["2026-08-20", 1960], ["2026-08-21", 2010], ["2026-08-22", 2060], ["2026-08-23", 2110], ["2026-08-24", 2150]]
     },
     {
@@ -186,6 +202,8 @@
       "license_spdx": "Apache-2.0",
       "discovery_sources": ["fixture-interest"],
       "readme": "Smolagents provides a concise agent runtime with code and tool use. Install the package and run the first tool-calling example.",
+      "summary_zh": "Smolagents 是强调轻量与可读性的 Agent 库，让模型通过代码或工具完成任务。适合学习代理执行循环，或快速搭建不需要复杂框架的实验原型。",
+      "quick_start": "Python · 运行官方工具调用示例，先观察 Agent 如何选择工具，再替换成自己的简单函数。",
       "star_history": [["2026-08-18", 1730], ["2026-08-19", 1750], ["2026-08-20", 1772], ["2026-08-21", 1795], ["2026-08-22", 1820], ["2026-08-23", 1848], ["2026-08-24", 1873]]
     },
     {
@@ -206,6 +224,8 @@
       "license_spdx": "MIT",
       "discovery_sources": ["fixture-exploration"],
       "readme": "LLM Guard provides input and output scanners for common LLM risks. Install the package and start with the scanner usage examples.",
+      "summary_zh": "LLM Guard 提供输入与输出扫描器，在请求进入模型前后检测并清洗提示注入、敏感信息和不安全内容。适合给现有 LLM 应用增加可组合的安全防护层。",
+      "quick_start": "Python · 选择一个输入扫描器和一个输出扫描器，先对 README 示例文本跑通检测与清洗流程。",
       "star_history": [["2026-08-18", 3790], ["2026-08-19", 3840], ["2026-08-20", 3900], ["2026-08-21", 3965], ["2026-08-22", 4030], ["2026-08-23", 4090], ["2026-08-24", 4150]]
     },
     {

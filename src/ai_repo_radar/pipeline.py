@@ -41,25 +41,30 @@ class ContentEnhancer(Protocol):
 class FixtureEnhancer:
     """Deterministic content for examples and end-to-end tests; never used in live runs."""
 
+    def __init__(self, enhancements: Mapping[str, RepositoryEnhancement]):
+        self._enhancements = dict(enhancements)
+
     def enhance(
         self,
         recommendations: list[Recommendation],
         readmes: Mapping[str, str],
     ) -> EnhancementResult:
-        enhancements = []
-        for recommendation in recommendations:
-            repo = recommendation.repository
-            summary = f"{repo.description or repo.full_name}，适合作为近期 AI 开源方向的源码观察样本。"
-            language = repo.language or "项目文档"
-            quick = f"{language} · 从 README 的安装与最小示例开始"
-            enhancements.append(
-                RepositoryEnhancement(
-                    full_name=repo.full_name,
-                    summary_zh=summary[:280],
-                    quick_start=quick,
-                )
+        missing = [
+            item.repository.full_name
+            for item in recommendations
+            if item.repository.full_name not in self._enhancements
+        ]
+        if missing:
+            return EnhancementResult(
+                enhancements=[],
+                error_category="fixture_content_missing",
+                message="固定样例缺少逐项目摘要；已保留公开描述。",
             )
-        return EnhancementResult(enhancements=enhancements)
+        return EnhancementResult(
+            enhancements=[
+                self._enhancements[item.repository.full_name] for item in recommendations
+            ]
+        )
 
 
 @dataclass(frozen=True)

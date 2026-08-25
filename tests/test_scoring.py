@@ -15,7 +15,7 @@ def _run_sample(sample_fixture, data_store, radar_config, *, report_date=None):
         config=radar_config,
         report_date=report_date or sample_fixture.report_date,
         readmes=sample_fixture.readmes,
-        enhancer=FixtureEnhancer(),
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
         generated_at=sample_fixture.generated_at,
     ).report
 
@@ -75,7 +75,7 @@ def test_day_eight_enforces_five_two_one_without_backfill(
         config=radar_config,
         report_date=sample_fixture.report_date,
         readmes=sample_fixture.readmes,
-        enhancer=FixtureEnhancer(),
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
         generated_at=sample_fixture.generated_at,
     ).report
     counts = {

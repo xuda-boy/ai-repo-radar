@@ -6,7 +6,12 @@ from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
 
-from ai_repo_radar.models import DailyReport, Repository, RepositorySnapshot
+from ai_repo_radar.models import (
+    DailyReport,
+    Repository,
+    RepositoryEnhancement,
+    RepositorySnapshot,
+)
 
 LEGACY_FIXTURE_REPOSITORY_ALIASES = {
     "agentmap/runtime-viewer": "Arize-ai/phoenix",
@@ -28,6 +33,7 @@ class SampleFixture:
     generated_at: datetime
     repositories: list[Repository]
     readmes: dict[str, str]
+    enhancements: dict[str, RepositoryEnhancement]
     historical_snapshots: list[RepositorySnapshot]
 
 
@@ -57,10 +63,13 @@ def load_sample_fixture(path: Path | None = None) -> SampleFixture:
 
     repositories: list[Repository] = []
     readmes: dict[str, str] = {}
+    enhancements: dict[str, RepositoryEnhancement] = {}
     snapshots: list[RepositorySnapshot] = []
     for item in raw["repositories"]:
         repository_payload: dict[str, Any] = {
-            key: value for key, value in item.items() if key not in {"readme", "star_history"}
+            key: value
+            for key, value in item.items()
+            if key not in {"quick_start", "readme", "star_history", "summary_zh"}
         }
         repository = Repository.model_validate(repository_payload)
         expected_url = f"https://github.com/{repository.full_name}"
@@ -71,6 +80,12 @@ def load_sample_fixture(path: Path | None = None) -> SampleFixture:
         repositories.append(repository)
         if item.get("readme"):
             readmes[repository.full_name] = item["readme"]
+        if item.get("summary_zh") or item.get("quick_start"):
+            enhancements[repository.full_name] = RepositoryEnhancement(
+                full_name=repository.full_name,
+                summary_zh=item["summary_zh"],
+                quick_start=item["quick_start"],
+            )
         for observed_on, stars in item.get("star_history", []):
             snapshots.append(
                 RepositorySnapshot(
@@ -90,5 +105,6 @@ def load_sample_fixture(path: Path | None = None) -> SampleFixture:
         generated_at=datetime.fromisoformat(raw["generated_at"].replace("Z", "+00:00")),
         repositories=repositories,
         readmes=readmes,
+        enhancements=enhancements,
         historical_snapshots=snapshots,
     )

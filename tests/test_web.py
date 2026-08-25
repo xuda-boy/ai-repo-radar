@@ -15,7 +15,7 @@ def _client(sample_fixture, data_store, radar_config, tmp_path) -> TestClient:
         config=radar_config,
         report_date=sample_fixture.report_date,
         readmes=sample_fixture.readmes,
-        enhancer=FixtureEnhancer(),
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
         generated_at=sample_fixture.generated_at,
     )
     database = rebuild_cache(data_store, tmp_path / "web.sqlite3")
@@ -54,6 +54,8 @@ def test_dashboard_reads_today_history_and_partial_views(
     assert "项目简介" in partial.text
     assert "AI 中文概览" in partial.text
     assert "GitHub 原始简介" in partial.text
+    assert "高吞吐和显存效率" in partial.text
+    assert "确认硬件兼容" in partial.text
     assert "A high-throughput, memory-efficient inference" in partial.text
 
 

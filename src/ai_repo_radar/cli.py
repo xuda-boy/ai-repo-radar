@@ -80,7 +80,7 @@ def sample(
         config=load_config(),
         report_date=sample_fixture.report_date,
         readmes=sample_fixture.readmes,
-        enhancer=FixtureEnhancer(),
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
         generated_at=sample_fixture.generated_at,
         replace_report=bool(existing_report and is_fixture_report(existing_report)),
     )
