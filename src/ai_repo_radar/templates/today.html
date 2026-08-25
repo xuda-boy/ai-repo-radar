@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-grid" aria-label="今日推荐工作台">
+    <aside class="signal-index" aria-label="今日项目索引">
+      <div class="index-head">
+        <span class="index-kicker">TODAY / SIGNALS</span>
+        <span class="index-count">{{ report.recommendations|length if report else 0 }} <small>项目</small></span>
+      </div>
+
+      {% if report and report.recommendations %}
+        <div class="object-list" id="today-object-list">
+          {% for item in report.recommendations %}
+            {% set estimated = item.growth.evidence.value == 'estimated' %}
+            <a
+              class="object-row"
+              href="/?repo={{ item.repository.full_name|urlquote }}"
+              aria-pressed="{{ 'true' if selected and selected.repository.full_name == item.repository.full_name else 'false' }}"
+              data-select-row
+              hx-get="/partials/recommendation?repo={{ item.repository.full_name|urlquote }}"
+              hx-target="#recommendation-detail"
+              hx-swap="outerHTML"
+              hx-push-url="/?repo={{ item.repository.full_name|urlquote }}"
+            >
+              <span class="object-meta"><strong>{{ {'interest':'兴趣匹配','rising':'快速涨星','exploration':'探索'}[item.kind.value] }}</strong><span>{{ '%02d'|format(loop.index) }}</span></span>
+              <span class="object-name">{{ item.repository.full_name }}</span>
+              <span class="object-signal"><span>24H{% if estimated %} 估算{% endif %}</span><b>{{ item.growth.delta_24h|delta(estimated=estimated) }}</b></span>
+            </a>
+          {% endfor %}
+        </div>
+        <div class="index-note">
+          <strong>今日结构</strong>
+          {{ mix }}<br>
+          {% if report.recommendations|length < 8 %}质量优先，仅展示通过门槛的项目{% else %}固定输入与反馈会产生固定排序{% endif %}
+        </div>
+      {% else %}
+        <div class="index-empty">首份日报生成后，项目索引会出现在这里。</div>
+      {% endif %}
+    </aside>
+
+    {% if selected and report %}
+      {% include "partials/recommendation_detail.html" %}
+    {% else %}
+      <article class="detail-canvas empty-state">
+        <span class="state-code">NO SIGNALS YET</span>
+        <h2>还没有可阅读的日报</h2>
+        <p>先运行固定样例验证完整链路，或配置 GitHub 与 MiniMax 后执行今日任务。</p>
+        <code>uv run ai-repo-radar sample</code>
+      </article>
+    {% endif %}
+  </section>
+{% endblock %}

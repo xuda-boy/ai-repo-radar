@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-grid" aria-label="历史日报">
+    <aside class="signal-index" aria-label="历史日期索引">
+      <div class="index-head">
+        <span class="index-kicker">REPORT / LEDGER</span>
+        <span class="index-count">{{ reports|length }} <small>天</small></span>
+      </div>
+      {% if reports %}
+        <div class="object-list">
+          {% for item in reports %}
+            <a
+              class="object-row"
+              href="/history?date_value={{ item.report_date.isoformat() }}"
+              aria-pressed="{{ 'true' if selected_report and selected_report.report_date == item.report_date else 'false' }}"
+              data-select-row
+              hx-get="/partials/history?date_value={{ item.report_date.isoformat() }}"
+              hx-target="#history-detail"
+              hx-swap="outerHTML"
+              hx-push-url="/history?date_value={{ item.report_date.isoformat() }}"
+            >
+              <span class="object-meta"><strong>{{ '模型降级' if item.status == 'degraded' else '正常' }}</strong><span>{{ item.report_date.strftime('%m/%d') }}</span></span>
+              <span class="object-name">{{ '今日推荐' if loop.first else '历史日报' }}</span>
+              <span class="object-signal"><span>推荐 / 收藏</span><b>{{ item.recommendation_count }} / {{ item.saved_count }}</b></span>
+            </a>
+          {% endfor %}
+        </div>
+        <div class="index-note">
+          <strong>可审计历史</strong>
+          {{ reports|sum(attribute='recommendation_count') }} 条推荐 · {{ reports|sum(attribute='saved_count') }} 次收藏<br>
+          自动运行与模型降级状态均保留
+        </div>
+      {% else %}
+        <div class="index-empty">尚无历史日报。</div>
+      {% endif %}
+    </aside>
+
+    {% if selected_report %}
+      {% include "partials/history_detail.html" %}
+    {% else %}
+      <article class="detail-canvas empty-state"><span class="state-code">EMPTY LEDGER</span><h2>历史会从第一份日报开始累积</h2><p>SQLite 只是视图，删除后仍可从追加式 JSON 完整重建。</p></article>
+    {% endif %}
+  </section>
+{% endblock %}

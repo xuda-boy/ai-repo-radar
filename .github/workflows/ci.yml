@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.4"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install Python and locked dependencies
+        run: |
+          uv python install 3.11
+          uv sync --frozen --all-groups
+      - name: Lint
+        run: uv run ruff check src tests scripts
+      - name: Test
+        run: uv run pytest --cov=ai_repo_radar --cov-report=term-missing
+      - name: Run deterministic end-to-end fixture
+        run: >-
+          uv run ai-repo-radar sample
+          --data-dir "${{ runner.temp }}/radar-data"
+          --database "${{ runner.temp }}/radar.sqlite3"
+      - name: Audit tracked files for secrets and private facts
+        run: uv run python scripts/privacy_audit.py
+
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.4"
+      - run: uv build

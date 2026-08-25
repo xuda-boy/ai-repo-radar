@@ -1,0 +1,104 @@
+name: Daily AI repository radar
+
+on:
+  workflow_call:
+    inputs:
+      code_repository:
+        description: Public OWNER/ai-repo-radar repository to check out.
+        required: true
+        type: string
+      code_ref:
+        description: Immutable public release tag.
+        required: false
+        default: v0.1.0
+        type: string
+      data_directory:
+        description: Private fact directory relative to the caller repository.
+        required: false
+        default: data
+        type: string
+      config_path:
+        description: Private TOML configuration relative to the caller repository.
+        required: false
+        default: config.toml
+        type: string
+    secrets:
+      MINIMAX_API_KEY:
+        description: MiniMax China API key used only for public README enrichment.
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-repo-radar-daily-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out private facts
+        uses: actions/checkout@v6
+        with:
+          path: private-data
+          fetch-depth: 0
+
+      - name: Check out pinned public implementation
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.code_repository }}
+          ref: ${{ inputs.code_ref }}
+          path: app
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.4"
+          enable-cache: true
+          cache-dependency-glob: app/uv.lock
+
+      - name: Install locked runtime
+        working-directory: app
+        run: |
+          uv python install 3.11
+          uv sync --frozen --no-dev
+
+      - name: Generate today's report
+        id: radar
+        working-directory: app
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+        run: >-
+          uv run ai-repo-radar daily
+          --data-dir "${{ github.workspace }}/private-data/${{ inputs.data_directory }}"
+          --database "${{ runner.temp }}/radar.sqlite3"
+          --config "${{ github.workspace }}/private-data/${{ inputs.config_path }}"
+
+      - name: Commit append-only facts
+        working-directory: private-data
+        env:
+          DATA_DIRECTORY: ${{ inputs.data_directory }}
+        run: |
+          git config user.name "ai-repo-radar[bot]"
+          git config user.email "ai-repo-radar[bot]@users.noreply.github.com"
+          git add -- "$DATA_DIRECTORY"
+          if git diff --cached --quiet; then
+            echo "No new private facts to commit." >> "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "data: daily radar $(date -u +%F)"
+            git push
+            echo "Daily JSON facts committed to the private repository." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Explain manual recovery
+        if: always()
+        run: |
+          {
+            echo "### AI Repo Radar"
+            echo "- Public implementation: \`${{ inputs.code_repository }}@${{ inputs.code_ref }}\`"
+            echo "- Manual retry: Actions → Daily AI Repo Radar → Run workflow"
+            echo "- MiniMax failure degrades the report; GitHub/data failures fail this job."
+          } >> "$GITHUB_STEP_SUMMARY"

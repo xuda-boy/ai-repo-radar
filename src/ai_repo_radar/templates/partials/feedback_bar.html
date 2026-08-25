@@ -1,0 +1,21 @@
+<section class="feedback-bar" id="feedback-bar" aria-label="推荐反馈">
+  <div class="feedback-copy">
+    <strong>这条推荐准确吗？</strong>
+    <span>{% if selected_action %}已记录 · 从明天开始生效{% else %}反馈从明天开始生效{% endif %}</span>
+  </div>
+  <div class="feedback-actions">
+    {% for action, label, icon in feedback_actions %}
+      <form method="post" action="/feedback" hx-post="/feedback" hx-target="#feedback-bar" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="repo_full_name" value="{{ recommendation.repository.full_name }}">
+        <input type="hidden" name="report_date" value="{{ report.report_date.isoformat() }}">
+        <input type="hidden" name="action" value="{{ action.value }}">
+        <button class="feedback-action{% if loop.first %} primary{% endif %}" type="submit" aria-pressed="{{ 'true' if selected_action == action else 'false' }}">
+          {% if icon == 'arrow' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>{% elif icon == 'bookmark' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3-5 3V4Z"/></svg>{% elif icon == 'minus' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9"/></svg>{% endif %}
+          {{ label }}
+        </button>
+      </form>
+    {% endfor %}
+  </div>
+  <span class="local-save-note">{% if pending_sync %}{{ pending_sync }} 条反馈已在本地排队{% else %}所有反馈均已同步{% endif %}</span>
+</section>

@@ -1,0 +1,41 @@
+[radar]
+candidate_limit = 300
+readme_rank_limit = 30
+min_stars = 10
+max_inactive_days = 180
+max_daily_recommendations = 8
+cold_start_days = 7
+repeat_interval_days = 7
+minimum_quality_score = 0.34
+
+[quota]
+interest = 5
+rising = 2
+exploration = 1
+
+[scoring]
+quality_weight = 0.28
+interest_weight = 0.30
+growth_weight = 0.24
+health_weight = 0.12
+novelty_weight = 0.06
+low_base_star_floor = 50
+
+[github]
+api_url = "https://api.github.com"
+api_version = "2026-03-10"
+timeout_seconds = 20
+max_retries = 3
+readme_excerpt_chars = 6000
+
+[minimax]
+api_url = "https://api.minimaxi.com/v1/chat/completions"
+model = "MiniMax-M3"
+timeout_seconds = 90
+max_retries = 2
+max_completion_tokens = 4096
+
+[dashboard]
+host = "127.0.0.1"
+port = 8765
+open_browser = true

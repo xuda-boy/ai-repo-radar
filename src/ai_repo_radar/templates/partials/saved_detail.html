@@ -1,0 +1,27 @@
+<article class="detail-canvas detail-swap" id="saved-detail">
+  {% if selected_saved.recommendation %}
+    {% set item = selected_saved.recommendation %}
+    <div class="saved-lead">
+      <span class="kind-label">Saved · {{ item.repository.topics[0] if item.repository.topics else 'AI' }}</span>
+      <h2>{{ item.repository.full_name }}</h2>
+      <p>{{ item.summary_zh or item.repository.description }}</p>
+      <div class="saved-meta">
+        <span>收藏于 {{ selected_saved.saved_at[:10] }}</span>
+        <span>{{ item.repository.stars|compact_number }} Stars</span>
+        <span>收藏时 7D {{ item.growth.delta_7d|delta }}</span>
+      </div>
+    </div>
+    <section class="saved-reason">
+      <div>
+        <h3>保留原因</h3>
+        <p>{{ item.recommendation_reason }}</p>
+      </div>
+      <a class="external-link" href="{{ item.repository.html_url }}" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M11 13l8-8M19 13v6H5V5h6"/></svg>
+        查看 GitHub
+      </a>
+    </section>
+  {% else %}
+    <div class="empty-state"><span class="state-code">LEGACY SAVE</span><h2>{{ selected_saved.repo_full_name }}</h2><p>该收藏事件存在，但对应日报内容未在当前缓存中找到。</p></div>
+  {% endif %}
+</article>

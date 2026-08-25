@@ -1,0 +1,63 @@
+<article class="detail-canvas detail-swap" id="recommendation-detail">
+  <header class="detail-head">
+    <div>
+      <span class="kind-label">{{ view.kind_english }} · {{ view.evidence_label }}</span>
+      <h2 class="repo-title">{{ recommendation.repository.full_name }}</h2>
+    </div>
+    <span class="health-label"><span aria-hidden="true"></span><b>{{ view.health }}</b></span>
+  </header>
+
+  {% if report.status.value == 'degraded' %}
+    <div class="degraded-banner" role="status">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 8 15H4L12 4Zm0 5v5m0 2.5v.5"/></svg>
+      <span>{{ report.degradation_message }} 规则排序、公开指标与英文描述仍然可用。</span>
+    </div>
+  {% endif %}
+
+  <p class="summary-copy">{{ recommendation.summary_zh or 'AI 中文摘要暂不可用；请以项目公开描述与 README 为准。' }}</p>
+  <p class="original-copy">Original · {{ recommendation.repository.description }}</p>
+
+  <div class="metric-band" aria-label="仓库关键指标">
+    <div class="metric"><span>STARS</span><strong>{{ view.stars }}</strong></div>
+    <div class="metric"><span>24 HOURS</span><strong class="positive">{{ view.delta_24h }}</strong></div>
+    <div class="metric"><span>7 DAYS</span><strong class="positive">{{ view.delta_7d }}</strong></div>
+    <div class="metric"><span>UPDATED</span><strong>{{ view.updated }}</strong></div>
+    <div class="metric"><span>SOURCE</span><strong>{{ view.evidence_label }}</strong></div>
+  </div>
+
+  <section class="trend-section">
+    <div class="section-head">
+      <h3>七日 Star 信号</h3>
+      {% if view.chart.available %}<span>{{ '{:,}'.format(view.chart.start) }} → {{ '{:,}'.format(view.chart.end) }}</span>{% else %}<span>等待快照积累</span>{% endif %}
+    </div>
+    {% if view.chart.available %}
+      <svg class="trend-chart" viewBox="0 0 720 190" role="img" aria-labelledby="chart-title-{{ recommendation.repository.name }} chart-desc-{{ recommendation.repository.name }}" preserveAspectRatio="none">
+        <title id="chart-title-{{ recommendation.repository.name }}">{{ recommendation.repository.full_name }} 七日 Star 趋势</title>
+        <desc id="chart-desc-{{ recommendation.repository.name }}">从 {{ view.chart.start }} 增长至 {{ view.chart.end }} Stars。</desc>
+        {% for y in view.chart.grid_y %}<line class="chart-grid" x1="44" x2="702" y1="{{ y }}" y2="{{ y }}"/>{% endfor %}
+        <path class="chart-area" d="{{ view.chart.area }}"/>
+        <path class="chart-line" d="{{ view.chart.path }}"/>
+        {% for point in view.chart.points %}
+          <circle class="chart-point" cx="{{ point.x }}" cy="{{ point.y }}" r="{{ 4 if point.last else 2.8 }}"><title>{{ point.date }} · {{ point.stars_label }} Stars</title></circle>
+        {% endfor %}
+        {% for point in view.chart.labels %}<text class="chart-label" x="{{ point.x }}" y="182" text-anchor="{{ 'start' if loop.first else ('end' if loop.last else 'middle') }}">{{ point.date }}</text>{% endfor %}
+        <text class="chart-label" x="44" y="12">{{ '{:,}'.format(view.chart.max) }}</text>
+      </svg>
+    {% else %}
+      <div class="chart-empty">首日先使用创建时间、当前 Star 与维护活跃度形成估算信号。</div>
+    {% endif %}
+  </section>
+
+  <div class="analysis-grid">
+    <section class="analysis-block">
+      <h3>为什么推荐</h3>
+      <p class="reason-copy">{{ recommendation.recommendation_reason }}</p>
+    </section>
+    <section class="analysis-block">
+      <h3>快速开始</h3>
+      <p class="quick-copy">{{ recommendation.quick_start or ((recommendation.repository.language or '项目文档') ~ ' · 从公开 README 的安装与最小示例开始') }}</p>
+    </section>
+  </div>
+
+  {% include "partials/feedback_bar.html" %}
+</article>

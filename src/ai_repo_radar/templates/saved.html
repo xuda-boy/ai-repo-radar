@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="page-grid" aria-label="收藏研究清单">
+    <aside class="signal-index" aria-label="收藏项目索引">
+      <div class="index-head">
+        <span class="index-kicker">SAVED / RESEARCH</span>
+        <span class="index-count">{{ saved_items|length }} <small>项目</small></span>
+      </div>
+      {% if saved_items %}
+        <div class="object-list">
+          {% for saved in saved_items %}
+            <a
+              class="object-row"
+              href="/saved?repo={{ saved.repo_full_name|urlquote }}"
+              aria-pressed="{{ 'true' if selected_saved and selected_saved.repo_full_name == saved.repo_full_name else 'false' }}"
+              data-select-row
+              hx-get="/partials/saved?repo={{ saved.repo_full_name|urlquote }}"
+              hx-target="#saved-detail"
+              hx-swap="outerHTML"
+              hx-push-url="/saved?repo={{ saved.repo_full_name|urlquote }}"
+            >
+              <span class="object-meta"><strong>{{ saved.recommendation.repository.topics[0] if saved.recommendation and saved.recommendation.repository.topics else 'AI' }}</strong><span>{{ saved.saved_at[5:10].replace('-', '/') }}</span></span>
+              <span class="object-name">{{ saved.repo_full_name }}</span>
+              <span class="object-signal"><span>收藏时 7D</span><b>{{ saved.recommendation.growth.delta_7d|delta if saved.recommendation else '—' }}</b></span>
+            </a>
+          {% endfor %}
+        </div>
+        <div class="index-note"><strong>研究清单</strong>收藏不会绕过历史去重<br>兴趣反馈仍从次日生效</div>
+      {% else %}
+        <div class="index-empty">在今日推荐中点击“收藏”，项目会进入这里。</div>
+      {% endif %}
+    </aside>
+
+    {% if selected_saved %}
+      {% include "partials/saved_detail.html" %}
+    {% else %}
+      <article class="detail-canvas empty-state"><span class="state-code">EMPTY RESEARCH LIST</span><h2>还没有收藏项目</h2><p>收藏是弱正反馈，也会把当时的推荐原因与增长证据保留下来。</p></article>
+    {% endif %}
+  </section>
+{% endblock %}

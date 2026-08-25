@@ -1,0 +1,28 @@
+<article class="detail-canvas detail-swap" id="history-detail">
+  <header class="report-head">
+    <div>
+      <span class="kind-label">Daily report · {{ '模型降级' if selected_report.status.value == 'degraded' else '正常' }}</span>
+      <h2>{{ selected_report.report_date.strftime('%Y 年 %m 月 %d 日') }}</h2>
+      <p>{{ selected_mix }}</p>
+    </div>
+    <span class="report-number">{{ '%02d'|format(selected_report.recommendations|length) }}</span>
+  </header>
+  {% if selected_report.status.value == 'degraded' %}
+    <div class="degraded-banner" role="status">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 8 15H4L12 4Zm0 5v5m0 2.5v.5"/></svg>
+      <span>{{ selected_report.degradation_message }} 已保留规则排序、公开描述和 Star 指标。</span>
+    </div>
+  {% endif %}
+  <div class="report-list" aria-label="当日报告项目">
+    {% for item in selected_report.recommendations %}
+      <a class="report-row" href="{{ item.repository.html_url }}" target="_blank" rel="noopener noreferrer">
+        <span class="report-position">{{ '%02d'|format(loop.index) }}</span>
+        <strong>{{ item.repository.full_name }}</strong>
+        <span>{{ {'interest':'兴趣匹配','rising':'快速涨星','exploration':'探索'}[item.kind.value] }} · {{ '估算' if item.growth.evidence.value == 'estimated' else '实测' }}</span>
+        <b>{{ item.growth.delta_24h|delta }} / 24h</b>
+      </a>
+    {% else %}
+      <div class="report-empty">当日没有项目通过质量门槛。</div>
+    {% endfor %}
+  </div>
+</article>
