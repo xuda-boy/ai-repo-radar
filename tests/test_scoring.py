@@ -37,9 +37,9 @@ def test_cold_start_has_deterministic_quality_rising_exploration_mix(
         RecommendationKind.RISING,
         RecommendationKind.EXPLORATION,
     ]
-    assert report.recommendations[0].repository.full_name == "nova-labs/agent-forge"
-    assert report.recommendations[-2].repository.full_name == "vectorwave/rapid-infer"
-    assert report.recommendations[-1].repository.full_name == "signalcraft/eval-canvas"
+    assert report.recommendations[0].repository.full_name == "langchain-ai/langgraph"
+    assert report.recommendations[-2].repository.full_name == "vllm-project/vllm"
+    assert report.recommendations[-1].repository.full_name == "confident-ai/deepeval"
 
 
 def test_day_eight_enforces_five_two_one_without_backfill(
@@ -48,7 +48,7 @@ def test_day_eight_enforces_five_two_one_without_backfill(
     radar_config,
 ) -> None:
     event = create_feedback_event(
-        repo_full_name="nova-labs/agent-forge",
+        repo_full_name="langchain-ai/langgraph",
         action=FeedbackAction.MORE_LIKE,
         topics=["llm", "ai-agent", "evaluation", "inference", "observability"],
         created_at=sample_fixture.generated_at - timedelta(days=8),

@@ -34,23 +34,27 @@ def test_dashboard_reads_today_history_and_partial_views(
     history = client.get("/history")
     partial = client.get(
         "/partials/recommendation",
-        params={"repo": "vectorwave/rapid-infer"},
+        params={"repo": "vllm-project/vllm"},
         headers={"HX-Request": "true"},
     )
 
     assert today.status_code == 200
-    assert "nova-labs/agent-forge" in today.text
+    assert "langchain-ai/langgraph" in today.text
     assert "七日 Star 信号" in today.text
     assert today.headers["x-frame-options"] == "DENY"
     assert history.status_code == 200
     assert "2026 年 08 月 25 日" in history.text
+    assert 'href="https://github.com/vllm-project/vllm"' in history.text
+    assert "github.com/example" not in history.text
+    assert "样例" in history.text
     assert partial.status_code == 200
-    assert "vectorwave/rapid-infer" in partial.text
+    assert "vllm-project/vllm" in partial.text
     assert "Fast rising" in partial.text
+    assert "样例" in partial.text
     assert "项目简介" in partial.text
     assert "AI 中文概览" in partial.text
     assert "GitHub 原始简介" in partial.text
-    assert "Memory-efficient inference server with an OpenAI-compatible API." in partial.text
+    assert "A high-throughput, memory-efficient inference" in partial.text
 
 
 def test_feedback_is_saved_locally_and_immediately_visible_in_saved_page(
@@ -63,7 +67,7 @@ def test_feedback_is_saved_locally_and_immediately_visible_in_saved_page(
     token = client.app.state.csrf_token
     payload = {
         "csrf_token": token,
-        "repo_full_name": "nova-labs/agent-forge",
+        "repo_full_name": "langchain-ai/langgraph",
         "report_date": sample_fixture.report_date.isoformat(),
         "action": "save",
     }
@@ -80,7 +84,8 @@ def test_feedback_is_saved_locally_and_immediately_visible_in_saved_page(
     assert "radar:feedbackSaved" in response.headers["HX-Trigger"]
     assert len(data_store.pending_feedback_events()) == 1
     assert saved.status_code == 200
-    assert "nova-labs/agent-forge" in saved.text
+    assert "langchain-ai/langgraph" in saved.text
+    assert 'href="https://github.com/langchain-ai/langgraph"' in saved.text
     assert "查看 GitHub" in saved.text
 
 
@@ -96,7 +101,7 @@ def test_feedback_rejects_bad_token_without_writing(
         "/feedback",
         data={
             "csrf_token": "wrong",
-            "repo_full_name": "nova-labs/agent-forge",
+            "repo_full_name": "langchain-ai/langgraph",
             "report_date": sample_fixture.report_date.isoformat(),
             "action": "save",
         },

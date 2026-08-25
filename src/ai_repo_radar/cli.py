@@ -18,7 +18,7 @@ from ai_repo_radar.paths import database_path
 from ai_repo_radar.pipeline import FixtureEnhancer, run_pipeline
 from ai_repo_radar.providers.github import GitHubClient
 from ai_repo_radar.providers.minimax import MiniMaxClient
-from ai_repo_radar.sample_data import load_sample_fixture
+from ai_repo_radar.sample_data import is_fixture_report, load_sample_fixture
 from ai_repo_radar.storage import JsonDataStore
 from ai_repo_radar.sync import private_repository_root, sync_private_data_safely
 
@@ -65,6 +65,14 @@ def sample(
     store = JsonDataStore(data_root)
     store.initialize()
     sample_fixture = load_sample_fixture(fixture)
+    existing_report = next(
+        (
+            report
+            for report in store.load_reports()
+            if report.report_date == sample_fixture.report_date
+        ),
+        None,
+    )
     store.append_snapshots(sample_fixture.historical_snapshots)
     result = run_pipeline(
         sample_fixture.repositories,
@@ -74,6 +82,7 @@ def sample(
         readmes=sample_fixture.readmes,
         enhancer=FixtureEnhancer(),
         generated_at=sample_fixture.generated_at,
+        replace_report=bool(existing_report and is_fixture_report(existing_report)),
     )
     rebuild_cache(store, db_path)
     console.print(_report_table(result.report.report_date, result.report.recommendations))

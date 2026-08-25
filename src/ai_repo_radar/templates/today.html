@@ -12,6 +12,8 @@
         <div class="object-list" id="today-object-list">
           {% for item in report.recommendations %}
             {% set estimated = item.growth.evidence.value == 'estimated' %}
+            {% set is_sample = item.repository.discovery_sources and item.repository.discovery_sources[0].startswith('fixture-') %}
+            {% set evidence_label = '样例' if is_sample else ('估算' if estimated else '实测') %}
             <a
               class="object-row"
               href="/?repo={{ item.repository.full_name|urlquote }}"
@@ -24,7 +26,7 @@
             >
               <span class="object-meta"><strong>{{ {'interest':'兴趣匹配','rising':'快速涨星','exploration':'探索'}[item.kind.value] }}</strong><span>{{ '%02d'|format(loop.index) }}</span></span>
               <span class="object-name">{{ item.repository.full_name }}</span>
-              <span class="object-signal"><span>24H{% if estimated %} 估算{% endif %}</span><b>{{ item.growth.delta_24h|delta(estimated=estimated) }}</b></span>
+              <span class="object-signal"><span>24H{% if evidence_label != '实测' %} {{ evidence_label }}{% endif %}</span><b>{{ item.growth.delta_24h|delta(estimated=estimated) }}</b></span>
             </a>
           {% endfor %}
         </div>

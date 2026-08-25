@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
 
-from ai_repo_radar.models import Repository, RepositorySnapshot
+from ai_repo_radar.models import DailyReport, Repository, RepositorySnapshot
 
 
 @dataclass(frozen=True)
@@ -20,6 +20,16 @@ class SampleFixture:
 
 def default_fixture_path() -> Path:
     return Path(__file__).resolve().parent / "fixtures" / "sample_input.json"
+
+
+def is_fixture_repository(repository: Repository) -> bool:
+    return any(source.startswith("fixture-") for source in repository.discovery_sources)
+
+
+def is_fixture_report(report: DailyReport) -> bool:
+    return bool(report.recommendations) and all(
+        is_fixture_repository(item.repository) for item in report.recommendations
+    )
 
 
 def load_sample_fixture(path: Path | None = None) -> SampleFixture:
@@ -36,6 +46,11 @@ def load_sample_fixture(path: Path | None = None) -> SampleFixture:
             key: value for key, value in item.items() if key not in {"readme", "star_history"}
         }
         repository = Repository.model_validate(repository_payload)
+        expected_url = f"https://github.com/{repository.full_name}"
+        if repository.html_url.rstrip("/") != expected_url:
+            raise ValueError(
+                f"sample repository URL must match full_name: {repository.full_name}"
+            )
         repositories.append(repository)
         if item.get("readme"):
             readmes[repository.full_name] = item["readme"]

@@ -23,6 +23,7 @@ from ai_repo_radar.models import (
     Recommendation,
     RecommendationKind,
 )
+from ai_repo_radar.sample_data import is_fixture_repository
 from ai_repo_radar.storage import JsonDataStore
 from ai_repo_radar.sync import private_repository_root, sync_private_data_safely
 
@@ -154,7 +155,7 @@ def _recommendation_view(recommendation: Recommendation, report: DailyReport) ->
         "item": recommendation,
         "kind_label": KIND_LABELS[recommendation.kind],
         "kind_english": KIND_ENGLISH[recommendation.kind],
-        "evidence_label": "估算" if estimated else "实测",
+        "evidence_label": _evidence_label(recommendation),
         "stars": _format_number(recommendation.repository.stars),
         "delta_24h": _format_delta(recommendation.growth.delta_24h, estimated=estimated),
         "delta_7d": _format_delta(recommendation.growth.delta_7d, estimated=estimated),
@@ -162,6 +163,14 @@ def _recommendation_view(recommendation: Recommendation, report: DailyReport) ->
         "health": _health_label(recommendation, report),
         "chart": _chart_geometry(recommendation),
     }
+
+
+def _evidence_label(recommendation: Recommendation) -> str:
+    if is_fixture_repository(recommendation.repository):
+        return "样例"
+    if recommendation.growth.evidence == EvidenceKind.ESTIMATED:
+        return "估算"
+    return "实测"
 
 
 def _select_recommendation(report: DailyReport, repo_full_name: str | None) -> Recommendation | None:
