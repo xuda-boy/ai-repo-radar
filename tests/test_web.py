@@ -47,6 +47,10 @@ def test_dashboard_reads_today_history_and_partial_views(
     assert partial.status_code == 200
     assert "vectorwave/rapid-infer" in partial.text
     assert "Fast rising" in partial.text
+    assert "项目简介" in partial.text
+    assert "AI 中文概览" in partial.text
+    assert "GitHub 原始简介" in partial.text
+    assert "Memory-efficient inference server with an OpenAI-compatible API." in partial.text
 
 
 def test_feedback_is_saved_locally_and_immediately_visible_in_saved_page(

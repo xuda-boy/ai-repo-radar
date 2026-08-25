@@ -24,10 +24,10 @@
 
 ## 字体
 
-- 编辑型标题：`Noto Serif SC`，500。
-- UI 正文：`Noto Sans SC`，400/500。
-- 仓库名、日期、指标：`IBM Plex Mono`，400/500。
-- 网络字体不可用时，分别回退到系统 serif、Microsoft YaHei 和 monospace。
+- 标题、项目简介、正文和控件统一使用现代中文无衬线栈：`Inter`、`Noto Sans SC`、`Microsoft YaHei UI`、`Segoe UI` 与系统 sans-serif。
+- 仓库主标题也使用无衬线字体，以避免中英文混排时出现打字机感；字号为 24–32px。
+- 日期、Star 指标和紧凑证据标签才使用 `JetBrains Mono`、`Cascadia Code` 或系统 monospace。
+- 正文与列表保持 13–16px；非装饰性文字不低于 11px。不依赖网络字体。
 
 ## 组件族
 

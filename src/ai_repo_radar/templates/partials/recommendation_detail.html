@@ -14,8 +14,19 @@
     </div>
   {% endif %}
 
-  <p class="summary-copy">{{ recommendation.summary_zh or 'AI 中文摘要暂不可用；请以项目公开描述与 README 为准。' }}</p>
-  <p class="original-copy">Original · {{ recommendation.repository.description }}</p>
+  <section class="intro-section" aria-labelledby="project-intro-title">
+    <div class="intro-head">
+      <h3 id="project-intro-title">项目简介</h3>
+      <span>{{ 'AI 中文概览' if recommendation.summary_zh else 'GitHub 原始简介' }}</span>
+    </div>
+    <p class="summary-copy">{{ recommendation.summary_zh or recommendation.repository.description or 'GitHub 暂未提供项目简介，请打开 README 查看详情。' }}</p>
+    {% if recommendation.summary_zh and recommendation.repository.description %}
+      <div class="original-copy">
+        <span>GitHub 原始简介</span>
+        <p lang="en">{{ recommendation.repository.description }}</p>
+      </div>
+    {% endif %}
+  </section>
 
   <div class="metric-band" aria-label="仓库关键指标">
     <div class="metric"><span>STARS</span><strong>{{ view.stars }}</strong></div>
