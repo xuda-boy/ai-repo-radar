@@ -161,6 +161,12 @@ def serve(
     data_dir: Path | None = typer.Option(None, help="Private append-only data root."),
     database: Path | None = typer.Option(None, help="Derived SQLite cache path."),
     config: Path | None = typer.Option(None, help="TOML configuration path."),
+    port: int | None = typer.Option(
+        None,
+        min=1,
+        max=65535,
+        help="Override the dashboard port from configuration.",
+    ),
     no_browser: bool = typer.Option(False, help="Do not open the default browser."),
 ) -> None:
     """Rebuild the cache, then serve the private dashboard on 127.0.0.1 only."""
@@ -182,14 +188,15 @@ def serve(
     from ai_repo_radar.web import create_app
 
     web_app = create_app(data_root=data_root, database_path=db_path)
-    url = f"http://{radar.dashboard.host}:{radar.dashboard.port}"
+    dashboard_port = port if port is not None else radar.dashboard.port
+    url = f"http://{radar.dashboard.host}:{dashboard_port}"
     if radar.dashboard.open_browser and not no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     console.print(f"[green]Dashboard:[/green] {url}")
     uvicorn.run(
         web_app,
         host=radar.dashboard.host,
-        port=radar.dashboard.port,
+        port=dashboard_port,
         log_level="info",
     )
 
