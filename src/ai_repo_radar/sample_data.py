@@ -8,6 +8,19 @@ from typing import Any
 
 from ai_repo_radar.models import DailyReport, Repository, RepositorySnapshot
 
+LEGACY_FIXTURE_REPOSITORY_ALIASES = {
+    "agentmap/runtime-viewer": "Arize-ai/phoenix",
+    "latentops/prompt-check": "promptfoo/promptfoo",
+    "modeldock/serve-lite": "ollama/ollama",
+    "nova-labs/agent-forge": "langchain-ai/langgraph",
+    "openmesh/rag-workbench": "run-llama/llama_index",
+    "shieldstack/llm-firewall": "protectai/llm-guard",
+    "signalcraft/eval-canvas": "confident-ai/deepeval",
+    "tinyagents/tool-loop": "huggingface/smolagents",
+    "traceyard/llm-observer": "langfuse/langfuse",
+    "vectorwave/rapid-infer": "vllm-project/vllm",
+}
+
 
 @dataclass(frozen=True)
 class SampleFixture:
@@ -30,6 +43,10 @@ def is_fixture_report(report: DailyReport) -> bool:
     return bool(report.recommendations) and all(
         is_fixture_repository(item.repository) for item in report.recommendations
     )
+
+
+def canonical_fixture_repository_name(full_name: str) -> str:
+    return LEGACY_FIXTURE_REPOSITORY_ALIASES.get(full_name, full_name)
 
 
 def load_sample_fixture(path: Path | None = None) -> SampleFixture:

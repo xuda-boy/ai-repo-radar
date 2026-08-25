@@ -46,6 +46,41 @@ def test_json_facts_rebuild_sqlite_and_saved_view(
     assert repository.sync_counts()["local"] == 1
 
 
+def test_rebuild_maps_legacy_fixture_save_without_rewriting_event(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    result = run_pipeline(
+        sample_fixture.repositories,
+        store=data_store,
+        config=radar_config,
+        report_date=sample_fixture.report_date,
+        readmes=sample_fixture.readmes,
+        enhancer=FixtureEnhancer(),
+        generated_at=sample_fixture.generated_at,
+    )
+    event = create_feedback_event(
+        repo_full_name="nova-labs/agent-forge",
+        action=FeedbackAction.SAVE,
+        topics=["agents", "llm"],
+        created_at=sample_fixture.generated_at,
+        report_date=result.report.report_date,
+    )
+    data_store.write_feedback_event(event)
+
+    database = rebuild_cache(data_store, tmp_path / "cache.sqlite3")
+    repository = CacheRepository(database)
+    saved = repository.list_saved()[0]
+
+    assert saved.repo_full_name == "langchain-ai/langgraph"
+    assert saved.recommendation is not None
+    assert saved.recommendation.repository.full_name == "langchain-ai/langgraph"
+    assert data_store.pending_feedback_events()[0].repo_full_name == "nova-labs/agent-forge"
+    assert "langchain-ai/langgraph" in repository.feedback_for_report(result.report.report_date)
+
+
 def test_normal_daily_report_is_immutable_by_default(
     sample_fixture,
     data_store,

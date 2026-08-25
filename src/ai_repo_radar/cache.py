@@ -17,6 +17,7 @@ from ai_repo_radar.models import (
     Recommendation,
     SyncStatus,
 )
+from ai_repo_radar.sample_data import canonical_fixture_repository_name
 from ai_repo_radar.storage import JsonDataStore
 
 SCHEMA = """
@@ -147,6 +148,7 @@ def rebuild_cache(store: JsonDataStore, database_path: Path) -> Path:
                 ),
             )
         for event in events:
+            cache_repo_full_name = canonical_fixture_repository_name(event.repo_full_name)
             connection.execute(
                 "INSERT OR REPLACE INTO feedback_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
@@ -161,11 +163,15 @@ def rebuild_cache(store: JsonDataStore, database_path: Path) -> Path:
                 ),
             )
             if event.action == FeedbackAction.SAVE:
-                recommendation = lookup.get((event.report_date, event.repo_full_name)) if event.report_date else None
+                recommendation = (
+                    lookup.get((event.report_date, cache_repo_full_name))
+                    if event.report_date
+                    else None
+                )
                 connection.execute(
                     "INSERT OR REPLACE INTO saved VALUES (?, ?, ?, ?)",
                     (
-                        event.repo_full_name,
+                        cache_repo_full_name,
                         event.created_at.isoformat(),
                         event.report_date.isoformat() if event.report_date else None,
                         _payload(recommendation) if recommendation else None,
@@ -270,7 +276,7 @@ class CacheRepository:
         for row in rows:
             event = FeedbackEvent.model_validate_json(row["payload_json"])
             if event.report_date == report_date:
-                result[event.repo_full_name] = event
+                result[canonical_fixture_repository_name(event.repo_full_name)] = event
         return result
 
     def insert_feedback(self, event: FeedbackEvent, recommendation: Recommendation | None) -> None:
