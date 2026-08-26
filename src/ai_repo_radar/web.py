@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,7 +23,7 @@ from ai_repo_radar.models import (
     Recommendation,
     RecommendationKind,
 )
-from ai_repo_radar.sample_data import is_fixture_repository
+from ai_repo_radar.sample_data import canonical_fixture_repository_name, is_fixture_repository
 from ai_repo_radar.storage import JsonDataStore
 from ai_repo_radar.sync import private_repository_root, sync_private_data_safely
 
@@ -44,6 +44,7 @@ FEEDBACK_ACTIONS = (
     (FeedbackAction.IRRELEVANT, "不相关", "minus"),
     (FeedbackAction.KNOWN, "已了解", "check"),
 )
+FEEDBACK_ACTION_LABELS = {action: label for action, label, _icon in FEEDBACK_ACTIONS}
 
 
 def _format_number(value: int) -> str:
@@ -201,6 +202,12 @@ def _select_report(cache: CacheRepository, raw_date: str | None) -> DailyReport 
     return cache.latest_report()
 
 
+def _sync_label(pending: int, *, configured: bool) -> str:
+    if not configured:
+        return f"{pending} 条反馈仅本地" if pending else "仅本地模式"
+    return f"{pending} 条反馈待同步" if pending else "数据已同步"
+
+
 def _same_origin(request: Request) -> bool:
     value = request.headers.get("origin") or request.headers.get("referer")
     if not value:
@@ -237,6 +244,7 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
     app.state.store = store
     app.state.cache = cache
     app.state.sync_lock = threading.Lock()
+    app.state.sync_configured = private_repository_root(store.root) is not None
     app.mount("/static", StaticFiles(directory=PACKAGE_ROOT / "static"), name="static")
 
     @app.middleware("http")
@@ -253,20 +261,45 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
         response.headers["Cache-Control"] = "no-store"
         return response
 
-    def base_context(request: Request, *, page: str, title: str, subtitle: str) -> dict[str, object]:
-        counts = cache.sync_counts()
-        pending = counts["local"] + counts["pending_retry"]
-        latest = cache.latest_report()
+    def sync_context(
+        request: Request,
+        *,
+        message: str | None = None,
+        tone: str | None = None,
+    ) -> dict[str, object]:
+        pending_events = list(reversed(store.pending_feedback_events()))
+        pending = len(pending_events)
+        configured = bool(app.state.sync_configured)
         return {
+            "request": request,
+            "pending_sync": pending,
+            "pending_feedback": [
+                {
+                    "repo_full_name": canonical_fixture_repository_name(event.repo_full_name),
+                    "action_label": FEEDBACK_ACTION_LABELS[event.action],
+                    "effective_date": event.effective_date.strftime("%m/%d"),
+                }
+                for event in pending_events[:5]
+            ],
+            "pending_feedback_extra": max(0, pending - 5),
+            "sync_configured": configured,
+            "sync_label": _sync_label(pending, configured=configured),
+            "sync_message": message,
+            "sync_tone": tone,
+            "csrf_token": app.state.csrf_token,
+        }
+
+    def base_context(request: Request, *, page: str, title: str, subtitle: str) -> dict[str, object]:
+        latest = cache.latest_report()
+        context = {
             "request": request,
             "page": page,
             "page_title": title,
             "page_subtitle": subtitle,
             "latest_report": latest,
-            "pending_sync": pending,
-            "sync_label": f"{pending} 条反馈待同步" if pending else "数据已同步",
-            "csrf_token": app.state.csrf_token,
         }
+        context.update(sync_context(request))
+        return context
 
     def recommendation_context(
         request: Request,
@@ -276,7 +309,7 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
         feedback = cache.feedback_for_report(report.report_date).get(
             recommendation.repository.full_name
         )
-        return {
+        context = {
             "request": request,
             "report": report,
             "recommendation": recommendation,
@@ -284,10 +317,9 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
             "feedback_actions": FEEDBACK_ACTIONS,
             "selected_action": feedback.action if feedback else None,
             "csrf_token": app.state.csrf_token,
-            "pending_sync": sum(
-                cache.sync_counts()[status] for status in ("local", "pending_retry")
-            ),
         }
+        context.update(sync_context(request))
+        return context
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -335,7 +367,6 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
     @app.post("/feedback", response_class=HTMLResponse)
     def feedback(
         request: Request,
-        background_tasks: BackgroundTasks,
         repo_full_name: str = Form(...),
         report_date: str = Form(...),
         action: str = Form(...),
@@ -362,18 +393,6 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
         )
         store.write_feedback_event(event, to_outbox=True)
         cache.insert_feedback(event, recommendation)
-
-        def sync_in_background() -> None:
-            if not app.state.sync_lock.acquire(blocking=False):
-                return
-            try:
-                sync_private_data_safely(store)
-                rebuild_cache(store, resolved_database)
-            finally:
-                app.state.sync_lock.release()
-
-        if private_repository_root(store.root):
-            background_tasks.add_task(sync_in_background)
         if request.headers.get("HX-Request") != "true":
             return RedirectResponse(
                 url=f"/?repo={quote(repo_full_name, safe='')}",
@@ -390,6 +409,62 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
                 "radar:feedbackSaved": {
                     "message": f"{repo_full_name} · 反馈已保存到本地",
                     "pending": context["pending_sync"],
+                    "configured": context["sync_configured"],
+                    "label": context["sync_label"],
+                }
+            },
+            ensure_ascii=True,
+        )
+        return response
+
+    @app.post("/sync-feedback", response_class=HTMLResponse)
+    def sync_feedback(
+        request: Request,
+        csrf_token: str = Form(...),
+    ):
+        if not hmac.compare_digest(csrf_token, app.state.csrf_token) or not _same_origin(request):
+            raise HTTPException(status_code=403, detail="invalid local form token")
+
+        if not app.state.sync_configured:
+            message = (
+                "当前数据目录未连接私人 Git 仓，反馈只保存在本机。"
+                "请使用私人数据仓作为 data-dir 重新启动仪表盘。"
+            )
+            tone = "warning"
+        elif not app.state.sync_lock.acquire(blocking=False):
+            message = "已有同步任务正在运行，请稍后再试。"
+            tone = "warning"
+        else:
+            try:
+                result = sync_private_data_safely(store)
+                rebuild_cache(store, resolved_database)
+            finally:
+                app.state.sync_lock.release()
+            if result.success:
+                message = f"已同步 {result.synced_events} 条反馈到私人数据仓。"
+                tone = "success"
+            else:
+                message = (
+                    "同步未完成，反馈仍安全保存在本机。"
+                    "请检查私人仓工作树、网络与 Git 凭据后重试。"
+                )
+                tone = "error"
+
+        context = sync_context(request, message=message, tone=tone)
+        if request.headers.get("HX-Request") != "true":
+            return RedirectResponse(url="/", status_code=303)
+        response = templates.TemplateResponse(
+            request=request,
+            name="partials/sync_panel.html",
+            context=context,
+        )
+        response.headers["HX-Trigger"] = json.dumps(
+            {
+                "radar:syncUpdated": {
+                    "message": message,
+                    "pending": context["pending_sync"],
+                    "configured": context["sync_configured"],
+                    "label": context["sync_label"],
                 }
             },
             ensure_ascii=True,

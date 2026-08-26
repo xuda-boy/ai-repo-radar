@@ -33,15 +33,33 @@
     if (button) button.disabled = false;
   });
 
-  document.body.addEventListener("radar:feedbackSaved", (event) => {
-    const detail = event.detail || {};
+  const updateSyncIndicators = (detail) => {
     const pending = Number(detail.pending || 0);
+    const configured = detail.configured !== false && detail.configured !== "false";
     const syncLabel = document.querySelector("#sync-label");
     const popoverSync = document.querySelector("#popover-sync");
-    if (syncLabel) syncLabel.textContent = pending ? `${pending} 条反馈待同步` : "数据已同步";
-    if (popoverSync) popoverSync.textContent = pending ? `${pending} 条待处理` : "无待处理";
-    if (statusButton) statusButton.classList.toggle("has-pending", pending > 0);
+    const label = detail.label || (configured
+      ? (pending ? `${pending} 条反馈待同步` : "数据已同步")
+      : (pending ? `${pending} 条反馈仅本地` : "仅本地模式"));
+    if (syncLabel) syncLabel.textContent = label;
+    if (popoverSync) {
+      popoverSync.textContent = configured
+        ? (pending ? `${pending} 条待处理` : "无待处理")
+        : (pending ? `${pending} 条仅本地` : "仅本地模式");
+    }
+    if (statusButton) statusButton.classList.toggle("has-pending", pending > 0 || !configured);
+  };
+
+  document.body.addEventListener("radar:feedbackSaved", (event) => {
+    const detail = event.detail || {};
+    updateSyncIndicators(detail);
     if (liveRegion) liveRegion.textContent = detail.message || "反馈已保存到本地";
+  });
+
+  document.body.addEventListener("radar:syncUpdated", (event) => {
+    const detail = event.detail || {};
+    updateSyncIndicators(detail);
+    if (liveRegion) liveRegion.textContent = detail.message || "反馈同步状态已更新";
   });
 
   document.body.addEventListener("htmx:responseError", () => {

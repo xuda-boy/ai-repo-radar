@@ -55,7 +55,7 @@
               <h2>今日任务状态</h2>
               <div class="status-row"><span>GitHub 数据</span><strong>{{ '已完成' if latest_report else '未生成' }}</strong></div>
               <div class="status-row"><span>MiniMax-M3</span><strong class="{% if latest_report and latest_report.model_status.value == 'degraded' %}warning{% endif %}">{% if not latest_report %}等待日报{% elif latest_report.model_status.value == 'enhanced' %}正常{% elif latest_report.model_status.value == 'degraded' %}已降级{% else %}未调用{% endif %}</strong></div>
-              <div class="status-row"><span>反馈同步</span><strong id="popover-sync">{{ pending_sync ~ ' 条待处理' if pending_sync else '无待处理' }}</strong></div>
+              {% include "partials/sync_panel.html" %}
             </section>
           </header>
 

@@ -35,7 +35,7 @@
 - 点击“收藏”后立即显示“已记录 · 从明天开始生效”，outbox 和待同步计数同时更新。
 - 收藏页能读取刚才的项目并展示保存日期、推荐原因和 GitHub 链接。
 - 历史页能读取当日日报和全部推荐行；8 条样例外链均为规范 GitHub 仓库地址，已实际打开 `langchain-ai/langgraph` 验证。
-- 状态按钮能展开 GitHub、MiniMax 和反馈同步三个状态。
+- 状态按钮能展开 GitHub、MiniMax 和反馈同步三个状态；样例目录明确显示“仅本地”，正式私人仓显示待同步事件、同步按钮及成功/失败结果。
 - 390px 视口 `scrollWidth == clientWidth == 375`，页面无横向溢出；项目索引保留设计内的横向选择带。
 
 ## Human visual scorecard

@@ -1,0 +1,58 @@
+<div class="sync-panel" id="sync-panel">
+  <div class="status-row sync-status-row">
+    <span>反馈同步</span>
+    <strong id="popover-sync" class="{% if not sync_configured or pending_sync %}warning{% endif %}">
+      {% if not sync_configured %}
+        {{ pending_sync ~ ' 条仅本地' if pending_sync else '仅本地模式' }}
+      {% else %}
+        {{ pending_sync ~ ' 条待处理' if pending_sync else '无待处理' }}
+      {% endif %}
+    </strong>
+  </div>
+
+  {% if pending_feedback %}
+    <details class="pending-feedback"{% if pending_sync <= 3 %} open{% endif %}>
+      <summary>查看 {{ pending_sync }} 条反馈</summary>
+      <ol>
+        {% for feedback in pending_feedback %}
+          <li>
+            <span class="pending-repo">{{ feedback.repo_full_name }}</span>
+            <span class="pending-meta">{{ feedback.action_label }} · {{ feedback.effective_date }} 生效</span>
+          </li>
+        {% endfor %}
+      </ol>
+      {% if pending_feedback_extra %}
+        <p class="pending-extra">另有 {{ pending_feedback_extra }} 条反馈保留在本地队列中。</p>
+      {% endif %}
+    </details>
+  {% else %}
+    <p class="sync-empty">当前没有待同步反馈。</p>
+  {% endif %}
+
+  {% if sync_message %}
+    <p class="sync-result is-{{ sync_tone or 'warning' }}" role="status">{{ sync_message }}</p>
+  {% endif %}
+
+  {% if sync_configured %}
+    <form
+      class="sync-form"
+      method="post"
+      action="/sync-feedback"
+      hx-post="/sync-feedback"
+      hx-target="#sync-panel"
+      hx-swap="outerHTML"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="sync-submit" type="submit"{% if not pending_sync %} disabled{% endif %}>
+        <span class="sync-button-ready">{{ '立即同步到私有仓' if pending_sync else '无需同步' }}</span>
+        <span class="sync-button-loading">同步中…</span>
+      </button>
+    </form>
+    <p class="sync-help">点击后会提交并推送这些反馈；失败时本地队列不会被删除。</p>
+  {% else %}
+    <p class="sync-disabled-reason">
+      当前使用的是样例或普通数据目录，没有连接带安全标记的私人 Git 仓，因此不会执行推送。
+    </p>
+    <button class="sync-submit" type="button" disabled>当前为仅本地模式</button>
+  {% endif %}
+</div>

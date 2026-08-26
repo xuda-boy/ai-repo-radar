@@ -92,7 +92,7 @@ MiniMax 缺 Key、超时、限额或响应异常时，命令仍保存规则排�
 
 ## 本地反馈同步
 
-Dashboard 点击反馈后会先写 `data/outbox/<UUID>.json`，页面立即可见。只有 Git 仓根目录存在 `.ai-repo-radar-private` 标记时，后台同步器才允许拉取、提交和推送：
+Dashboard 点击反馈后会先写 `data/outbox/<UUID>.json`，页面立即可见。只有数据目录位于带 `.ai-repo-radar-private` 标记的私人 Git 仓中，状态面板才会启用“立即同步到私有仓”；点击后会拉取、提交并推送。也可以使用等价的 CLI 重试：
 
 ```powershell
 uv run ai-repo-radar sync-data `
@@ -100,7 +100,7 @@ uv run ai-repo-radar sync-data `
   --database D:\Github\ai-repo-radar-data\.cache\radar.sqlite3
 ```
 
-断网、远端冲突或凭据不可用时，事件转为 `pending_retry` 并保留在 outbox。同步器复用 Git Credential Manager 或 Git 自身凭据，不读取或保存明文 Token。
+样例或普通目录会明确显示“反馈仅本地”，不会误执行推送。断网、远端冲突或凭据不可用时，事件转为 `pending_retry` 并保留在 outbox。同步器复用 Git Credential Manager 或 Git 自身凭据，不读取或保存明文 Token。
 
 ## CLI
 
