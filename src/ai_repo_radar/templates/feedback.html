@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="feedback-page" aria-labelledby="feedback-ledger-title">
+    <header class="ledger-intro">
+      <div>
+        <span class="ledger-eyebrow">FEEDBACK / AUDIT LEDGER</span>
+        <h2 id="feedback-ledger-title">你的推荐反馈，一条也不会悄悄消失</h2>
+        <p>这里记录你点过的反馈、同步状态和生效日期。误触时可以撤回，系统会保留原记录并追加一条抵消事件。</p>
+      </div>
+      <aside class="ledger-guidance" aria-label="反馈规则">
+        <strong>次日生效</strong>
+        <span>反馈和撤回都会从下一天开始影响推荐；需要推送时，仍由右上角同步面板统一确认。</span>
+      </aside>
+    </header>
+
+    {% include "partials/feedback_ledger.html" %}
+  </section>
+{% endblock %}

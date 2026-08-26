@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 import ai_repo_radar.web as web_module
 from ai_repo_radar.cache import rebuild_cache
+from ai_repo_radar.models import FeedbackAction
 from ai_repo_radar.pipeline import FixtureEnhancer, run_pipeline
 from ai_repo_radar.sync import SyncResult
 from ai_repo_radar.web import create_app
@@ -116,6 +117,117 @@ def test_feedback_rejects_bad_token_without_writing(
 
     assert response.status_code == 403
     assert data_store.pending_feedback_events() == []
+
+
+def test_feedback_ledger_shows_actions_timing_and_sync_status(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    token = client.app.state.csrf_token
+    client.post(
+        "/feedback",
+        data={
+            "csrf_token": token,
+            "repo_full_name": "langchain-ai/langgraph",
+            "report_date": sample_fixture.report_date.isoformat(),
+            "action": "more_like",
+        },
+        headers={"Origin": "http://127.0.0.1:8765"},
+    )
+
+    response = client.get("/feedback")
+
+    assert response.status_code == 200
+    assert 'aria-current="page"' in response.text
+    assert "操作明细" in response.text
+    assert "langchain-ai/langgraph" in response.text
+    assert "更多此类" in response.text
+    assert "本地待同步" in response.text
+    assert "次日生效" in response.text
+    assert "撤回反馈" in response.text
+    assert "hx-confirm=" in response.text
+
+
+def test_feedback_can_be_revoked_without_deleting_original_event(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    token = client.app.state.csrf_token
+    client.post(
+        "/feedback",
+        data={
+            "csrf_token": token,
+            "repo_full_name": "langchain-ai/langgraph",
+            "report_date": sample_fixture.report_date.isoformat(),
+            "action": "save",
+        },
+        headers={"Origin": "http://127.0.0.1:8765"},
+    )
+    original = data_store.pending_feedback_events()[0]
+
+    response = client.post(
+        f"/feedback/{original.event_id}/revoke",
+        data={"csrf_token": token},
+        headers={"HX-Request": "true", "Origin": "http://127.0.0.1:8765"},
+    )
+    trigger = json.loads(response.headers["HX-Trigger"])["radar:feedbackRevoked"]
+    events = data_store.load_feedback_events()
+    saved = client.get("/saved")
+    sync_panel = client.get("/")
+    repeated = client.post(
+        f"/feedback/{original.event_id}/revoke",
+        data={"csrf_token": token},
+        headers={"HX-Request": "true", "Origin": "http://127.0.0.1:8765"},
+    )
+
+    assert response.status_code == 200
+    assert "撤回待生效" in response.text
+    assert "撤回 · 本地待同步" in response.text
+    assert trigger["pending"] == 2
+    assert len(events) == 2
+    assert original.event_id in {event.event_id for event in events}
+    retraction = next(event for event in events if event.action == FeedbackAction.REVOKE)
+    assert retraction.reverts_event_id == original.event_id
+    assert "还没有收藏项目" in saved.text
+    assert 'href="https://github.com/langchain-ai/langgraph"' not in saved.text
+    assert "撤回反馈" in sync_panel.text
+    assert repeated.status_code == 409
+
+
+def test_feedback_revoke_rejects_bad_token_without_writing(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    token = client.app.state.csrf_token
+    client.post(
+        "/feedback",
+        data={
+            "csrf_token": token,
+            "repo_full_name": "langchain-ai/langgraph",
+            "report_date": sample_fixture.report_date.isoformat(),
+            "action": "known",
+        },
+        headers={"Origin": "http://127.0.0.1:8765"},
+    )
+    original = data_store.pending_feedback_events()[0]
+
+    response = client.post(
+        f"/feedback/{original.event_id}/revoke",
+        data={"csrf_token": "wrong"},
+        headers={"Origin": "http://127.0.0.1:8765"},
+    )
+
+    assert response.status_code == 403
+    assert data_store.load_feedback_events() == [original]
 
 
 def test_sample_feedback_is_clearly_marked_local_only(

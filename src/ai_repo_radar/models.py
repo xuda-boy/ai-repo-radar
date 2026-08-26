@@ -39,6 +39,7 @@ class FeedbackAction(StrEnum):
     SAVE = "save"
     IRRELEVANT = "irrelevant"
     KNOWN = "known"
+    REVOKE = "revoke"
 
 
 class SyncStatus(StrEnum):
@@ -179,11 +180,18 @@ class FeedbackEvent(StrictModel):
     effective_date: date
     report_date: date | None = None
     sync_status: SyncStatus = SyncStatus.LOCAL
+    reverts_event_id: UUID | None = None
 
     @model_validator(mode="after")
-    def feedback_takes_effect_later(self) -> FeedbackEvent:
+    def validate_feedback_event(self) -> FeedbackEvent:
         if self.effective_date <= self.created_at.date():
             raise ValueError("feedback must take effect no earlier than the next day")
+        if self.action == FeedbackAction.REVOKE and self.reverts_event_id is None:
+            raise ValueError("revoke feedback must reference the event it reverts")
+        if self.action != FeedbackAction.REVOKE and self.reverts_event_id is not None:
+            raise ValueError("only revoke feedback can reference another event")
+        if self.reverts_event_id == self.event_id:
+            raise ValueError("feedback cannot revert itself")
         return self
 
 

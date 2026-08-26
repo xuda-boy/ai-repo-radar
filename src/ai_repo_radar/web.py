@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import quote
+from uuid import UUID
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -15,13 +16,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ai_repo_radar.cache import CacheRepository, SavedItem, rebuild_cache
-from ai_repo_radar.feedback import create_feedback_event
+from ai_repo_radar.feedback import create_feedback_event, create_feedback_retraction
 from ai_repo_radar.models import (
     DailyReport,
     EvidenceKind,
     FeedbackAction,
     Recommendation,
     RecommendationKind,
+    SyncStatus,
 )
 from ai_repo_radar.sample_data import canonical_fixture_repository_name, is_fixture_repository
 from ai_repo_radar.storage import JsonDataStore
@@ -45,6 +47,13 @@ FEEDBACK_ACTIONS = (
     (FeedbackAction.KNOWN, "已了解", "check"),
 )
 FEEDBACK_ACTION_LABELS = {action: label for action, label, _icon in FEEDBACK_ACTIONS}
+FEEDBACK_ACTION_LABELS[FeedbackAction.REVOKE] = "撤回反馈"
+SYNC_STATUS_LABELS = {
+    SyncStatus.LOCAL: "本地待同步",
+    SyncStatus.SYNCING: "同步中",
+    SyncStatus.SYNCED: "已同步",
+    SyncStatus.PENDING_RETRY: "等待重试",
+}
 
 
 def _format_number(value: int) -> str:
@@ -208,6 +217,14 @@ def _sync_label(pending: int, *, configured: bool) -> str:
     return f"{pending} 条反馈待同步" if pending else "数据已同步"
 
 
+def _sync_tone(status: SyncStatus) -> str:
+    if status == SyncStatus.SYNCED:
+        return "success"
+    if status == SyncStatus.PENDING_RETRY:
+        return "error"
+    return "warning"
+
+
 def _same_origin(request: Request) -> bool:
     value = request.headers.get("origin") or request.headers.get("referer")
     if not value:
@@ -244,6 +261,7 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
     app.state.store = store
     app.state.cache = cache
     app.state.sync_lock = threading.Lock()
+    app.state.feedback_lock = threading.Lock()
     app.state.sync_configured = private_repository_root(store.root) is not None
     app.mount("/static", StaticFiles(directory=PACKAGE_ROOT / "static"), name="static")
 
@@ -300,6 +318,62 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
         }
         context.update(sync_context(request))
         return context
+
+    def feedback_ledger_context(request: Request) -> dict[str, object]:
+        events = store.load_feedback_events(include_outbox=True)
+        retractions = {
+            event.reverts_event_id: event
+            for event in events
+            if event.action == FeedbackAction.REVOKE and event.reverts_event_id is not None
+        }
+        originals = [event for event in events if event.action != FeedbackAction.REVOKE]
+        retracted_event_ids = set(retractions).intersection(
+            event.event_id for event in originals
+        )
+        today_date = date.today()
+        items: list[dict[str, object]] = []
+        for event in reversed(originals):
+            retraction = retractions.get(event.event_id)
+            if retraction is None:
+                state_label = "次日生效" if event.effective_date > today_date else "生效中"
+                state_tone = "active"
+            elif retraction.effective_date > today_date:
+                state_label = "撤回待生效"
+                state_tone = "pending"
+            else:
+                state_label = "已撤回"
+                state_tone = "revoked"
+            items.append(
+                {
+                    "event_id": str(event.event_id),
+                    "repo_full_name": canonical_fixture_repository_name(event.repo_full_name),
+                    "action_label": FEEDBACK_ACTION_LABELS[event.action],
+                    "created_at": event.created_at.astimezone().strftime("%Y-%m-%d %H:%M"),
+                    "effective_date": event.effective_date.isoformat(),
+                    "sync_label": SYNC_STATUS_LABELS[event.sync_status],
+                    "sync_tone": _sync_tone(event.sync_status),
+                    "state_label": state_label,
+                    "state_tone": state_tone,
+                    "retraction": (
+                        {
+                            "effective_date": retraction.effective_date.isoformat(),
+                            "sync_label": SYNC_STATUS_LABELS[retraction.sync_status],
+                            "sync_tone": _sync_tone(retraction.sync_status),
+                        }
+                        if retraction
+                        else None
+                    ),
+                }
+            )
+        return {
+            "request": request,
+            "feedback_items": items,
+            "feedback_total": len(originals),
+            "feedback_active": len(originals) - len(retracted_event_ids),
+            "feedback_revoked": len(retracted_event_ids),
+            "feedback_pending": len(store.pending_feedback_events()),
+            "csrf_token": app.state.csrf_token,
+        }
 
     def recommendation_context(
         request: Request,
@@ -379,6 +453,8 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
             parsed_action = FeedbackAction(action)
         except ValueError as error:
             raise HTTPException(status_code=400, detail="invalid feedback payload") from error
+        if parsed_action == FeedbackAction.REVOKE:
+            raise HTTPException(status_code=400, detail="invalid feedback payload")
         report = cache.get_report(parsed_date)
         if report is None:
             raise HTTPException(status_code=404, detail="report not found")
@@ -411,6 +487,69 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
                     "pending": context["pending_sync"],
                     "configured": context["sync_configured"],
                     "label": context["sync_label"],
+                }
+            },
+            ensure_ascii=True,
+        )
+        return response
+
+    @app.get("/feedback", response_class=HTMLResponse)
+    def feedback_ledger(request: Request):
+        context = base_context(
+            request,
+            page="feedback",
+            title="反馈记录",
+            subtitle="看清每次偏好操作，并安全撤回误触反馈。",
+        )
+        context.update(feedback_ledger_context(request))
+        return templates.TemplateResponse(request=request, name="feedback.html", context=context)
+
+    @app.get("/partials/feedback-ledger", response_class=HTMLResponse)
+    def feedback_ledger_partial(request: Request):
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/feedback_ledger.html",
+            context=feedback_ledger_context(request),
+        )
+
+    @app.post("/feedback/{event_id}/revoke", response_class=HTMLResponse)
+    def revoke_feedback(
+        request: Request,
+        event_id: UUID,
+        csrf_token: str = Form(...),
+    ):
+        if not hmac.compare_digest(csrf_token, app.state.csrf_token) or not _same_origin(request):
+            raise HTTPException(status_code=403, detail="invalid local form token")
+        with app.state.feedback_lock:
+            events = store.load_feedback_events(include_outbox=True)
+            target = next((event for event in events if event.event_id == event_id), None)
+            if target is None or target.action == FeedbackAction.REVOKE:
+                raise HTTPException(status_code=404, detail="feedback event not found")
+            if any(event.reverts_event_id == event_id for event in events):
+                raise HTTPException(status_code=409, detail="feedback event already revoked")
+            retraction = create_feedback_retraction(target)
+            store.write_feedback_event(retraction, to_outbox=True)
+            rebuild_cache(store, resolved_database)
+
+        if request.headers.get("HX-Request") != "true":
+            return RedirectResponse(url="/feedback", status_code=303)
+        context = feedback_ledger_context(request)
+        sync_state = sync_context(request)
+        response = templates.TemplateResponse(
+            request=request,
+            name="partials/feedback_ledger.html",
+            context=context,
+        )
+        response.headers["HX-Trigger"] = json.dumps(
+            {
+                "radar:feedbackRevoked": {
+                    "message": (
+                        f"{canonical_fixture_repository_name(target.repo_full_name)} · "
+                        "撤回已记录，将从次日起抵消原反馈"
+                    ),
+                    "pending": sync_state["pending_sync"],
+                    "configured": sync_state["sync_configured"],
+                    "label": sync_state["sync_label"],
                 }
             },
             ensure_ascii=True,

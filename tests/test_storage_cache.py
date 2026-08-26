@@ -5,7 +5,7 @@ from datetime import timedelta
 import pytest
 
 from ai_repo_radar.cache import CacheRepository, rebuild_cache
-from ai_repo_radar.feedback import create_feedback_event
+from ai_repo_radar.feedback import create_feedback_event, create_feedback_retraction
 from ai_repo_radar.models import FeedbackAction
 from ai_repo_radar.pipeline import FixtureEnhancer, run_pipeline
 from ai_repo_radar.storage import ReportAlreadyExistsError
@@ -79,6 +79,64 @@ def test_rebuild_maps_legacy_fixture_save_without_rewriting_event(
     assert saved.recommendation.repository.full_name == "langchain-ai/langgraph"
     assert data_store.pending_feedback_events()[0].repo_full_name == "nova-labs/agent-forge"
     assert "langchain-ai/langgraph" in repository.feedback_for_report(result.report.report_date)
+
+
+def test_rebuild_excludes_revoked_save_but_preserves_feedback_history(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    result = run_pipeline(
+        sample_fixture.repositories,
+        store=data_store,
+        config=radar_config,
+        report_date=sample_fixture.report_date,
+        readmes=sample_fixture.readmes,
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
+        generated_at=sample_fixture.generated_at,
+    )
+    selected = result.report.recommendations[0]
+    save = create_feedback_event(
+        repo_full_name=selected.repository.full_name,
+        action=FeedbackAction.SAVE,
+        topics=selected.repository.topics,
+        created_at=sample_fixture.generated_at,
+        report_date=result.report.report_date,
+    )
+    retraction = create_feedback_retraction(
+        save,
+        created_at=sample_fixture.generated_at + timedelta(hours=1),
+    )
+    data_store.write_feedback_event(save)
+    data_store.write_feedback_event(retraction)
+
+    database = rebuild_cache(data_store, tmp_path / "cache.sqlite3")
+    repository = CacheRepository(database)
+
+    assert repository.list_saved() == []
+    assert repository.list_reports()[0].saved_count == 0
+    assert repository.feedback_for_report(result.report.report_date) == {}
+    assert {event.event_id for event in data_store.load_feedback_events()} == {
+        save.event_id,
+        retraction.event_id,
+    }
+
+    later_save = create_feedback_event(
+        repo_full_name=selected.repository.full_name,
+        action=FeedbackAction.SAVE,
+        topics=selected.repository.topics,
+        created_at=sample_fixture.generated_at + timedelta(hours=2),
+        report_date=result.report.report_date,
+    )
+    data_store.write_feedback_event(later_save)
+    rebuild_cache(data_store, database)
+
+    assert repository.list_saved()[0].saved_at == later_save.created_at.isoformat()
+    assert (
+        repository.feedback_for_report(result.report.report_date)[selected.repository.full_name]
+        == later_save
+    )
 
 
 def test_normal_daily_report_is_immutable_by_default(

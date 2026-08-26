@@ -1,0 +1,113 @@
+<section
+  class="feedback-ledger-region"
+  id="feedback-ledger-region"
+  aria-label="反馈记录"
+  hx-get="/partials/feedback-ledger"
+  hx-trigger="radar:syncUpdated from:body"
+  hx-swap="outerHTML"
+>
+  <div class="ledger-summary" aria-label="反馈概览">
+    <article class="ledger-stat">
+      <span>全部反馈</span>
+      <strong>{{ feedback_total }}</strong>
+      <small>原始操作</small>
+    </article>
+    <article class="ledger-stat is-active">
+      <span>尚未撤回</span>
+      <strong>{{ feedback_active }}</strong>
+      <small>仍保留原反馈</small>
+    </article>
+    <article class="ledger-stat is-revoked">
+      <span>撤回记录</span>
+      <strong>{{ feedback_revoked }}</strong>
+      <small>含待次日生效</small>
+    </article>
+    <article class="ledger-stat{% if feedback_pending %} is-pending{% endif %}">
+      <span>待同步事件</span>
+      <strong>{{ feedback_pending }}</strong>
+      <small>含反馈与撤回</small>
+    </article>
+  </div>
+
+  {% if feedback_items %}
+    <div class="ledger-table-shell">
+      <div class="ledger-table-heading">
+        <div>
+          <h3>操作明细</h3>
+          <p>按提交时间倒序排列；“撤回”只抵消偏好影响，不删除审计记录。</p>
+        </div>
+        <span>{{ feedback_total }} 条记录</span>
+      </div>
+      <div class="ledger-table-scroll">
+        <table class="ledger-table">
+          <colgroup>
+            <col class="ledger-col-repo">
+            <col class="ledger-col-action">
+            <col class="ledger-col-created">
+            <col class="ledger-col-effective">
+            <col class="ledger-col-sync">
+            <col class="ledger-col-state">
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">项目</th>
+              <th scope="col">你的反馈</th>
+              <th scope="col">提交时间</th>
+              <th scope="col">生效日期</th>
+              <th scope="col">同步状态</th>
+              <th scope="col">当前状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in feedback_items %}
+              <tr>
+                <td class="ledger-repo-cell" data-label="项目">
+                  <a href="https://github.com/{{ item.repo_full_name }}" target="_blank" rel="noreferrer">{{ item.repo_full_name }}</a>
+                  <span class="ledger-event-id">ID {{ item.event_id[:8] }}</span>
+                </td>
+                <td data-label="你的反馈"><strong class="ledger-action-label">{{ item.action_label }}</strong></td>
+                <td data-label="提交时间"><time class="ledger-time">{{ item.created_at }}</time><small>本地时间</small></td>
+                <td data-label="生效日期"><time class="ledger-time">{{ item.effective_date }}</time></td>
+                <td data-label="同步状态">
+                  <div class="ledger-sync-stack">
+                    <span class="status-chip is-{{ item.sync_tone }}">原反馈 · {{ item.sync_label }}</span>
+                    {% if item.retraction %}
+                      <span class="status-chip is-{{ item.retraction.sync_tone }}">撤回 · {{ item.retraction.sync_label }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="ledger-state-cell" data-label="当前状态">
+                  <span class="ledger-state is-{{ item.state_tone }}">{{ item.state_label }}</span>
+                  {% if item.retraction %}
+                    <span class="ledger-revoke-date">{{ item.retraction.effective_date }} 抵消</span>
+                    <button class="revoke-button" type="button" disabled>撤回已记录</button>
+                  {% else %}
+                    <form
+                      method="post"
+                      action="/feedback/{{ item.event_id }}/revoke"
+                      hx-post="/feedback/{{ item.event_id }}/revoke"
+                      hx-target="#feedback-ledger-region"
+                      hx-swap="outerHTML"
+                      hx-confirm="确认撤回对 {{ item.repo_full_name }} 的“{{ item.action_label }}”反馈吗？原记录会保留，并从次日起抵消其推荐影响。"
+                      data-confirm="确认撤回对 {{ item.repo_full_name }} 的“{{ item.action_label }}”反馈吗？原记录会保留，并从次日起抵消其推荐影响。"
+                    >
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button class="revoke-button" type="submit">撤回反馈</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <article class="ledger-empty">
+      <span class="state-code">NO FEEDBACK YET</span>
+      <h3>还没有反馈记录</h3>
+      <p>在今日推荐里选择“更多此类、收藏、不相关、已了解”后，操作和同步状态都会出现在这里。</p>
+      <a href="/">查看今日推荐</a>
+    </article>
+  {% endif %}
+</section>

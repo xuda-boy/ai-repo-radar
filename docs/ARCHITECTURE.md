@@ -30,7 +30,7 @@ JSON 是事实源。SQLite 使用临时文件完整构建，成功后原子替�
 
 ## 反馈一致性
 
-每次反馈先生成 UUID 并写本地 outbox。兴趣画像按 `effective_date` 重放事件，`applied_event_ids` 保证同一事件不会重复影响权重。正式仪表盘由用户在状态面板中显式点击同步，CLI `sync-data` 提供等价重试；同步时：
+每次反馈先生成 UUID 并写本地 outbox。误触撤回也生成独立 UUID，通过 `reverts_event_id` 指向原事件，并在次日应用原动作的反向 Topic 调整；原事件保持不可变。收藏视图从未被撤回的 `save` 事件完整重建。兴趣画像按 `effective_date` 重放事件，`applied_event_ids` 保证同一事件不会重复影响权重。正式仪表盘由用户在状态面板中显式点击同步，CLI `sync-data` 提供等价重试；同步时：
 
 1. 验证数据目录位于带 `.ai-repo-radar-private` 标记的 Git 仓。
 2. 要求工作树没有无关更改，fetch 并 rebase 当前分支。

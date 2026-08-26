@@ -22,7 +22,7 @@ data/
 
 ## 反馈事件
 
-事件字段包括 `event_id`、仓库、动作、topics、创建时间、次日 `effective_date`、来源日报和同步状态。四种动作的默认 Topic 调整：
+事件字段包括 `event_id`、仓库、动作、topics、创建时间、次日 `effective_date`、来源日报、同步状态和可选的 `reverts_event_id`。四种原始动作的默认 Topic 调整：
 
 | 动作 | 调整 |
 |---|---:|
@@ -30,8 +30,9 @@ data/
 | `save` | `+0.05` |
 | `irrelevant` | `-0.12` |
 | `known` | `0.00` |
+| `revoke` | 原动作的反向调整 |
 
-单个 Topic 权重限制在 `[-1, 1]`。同一 UUID 被多次读取只应用一次。
+`revoke` 必须通过 `reverts_event_id` 指向一条非撤回事件；它追加一条补偿记录而不覆盖原 JSON。单个 Topic 权重限制在 `[-1, 1]`。同一 UUID 被多次读取只应用一次。
 
 ## SQLite
 

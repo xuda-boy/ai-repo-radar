@@ -56,6 +56,12 @@
     if (liveRegion) liveRegion.textContent = detail.message || "反馈已保存到本地";
   });
 
+  document.body.addEventListener("radar:feedbackRevoked", (event) => {
+    const detail = event.detail || {};
+    updateSyncIndicators(detail);
+    if (liveRegion) liveRegion.textContent = detail.message || "撤回已保存到本地";
+  });
+
   document.body.addEventListener("radar:syncUpdated", (event) => {
     const detail = event.detail || {};
     updateSyncIndicators(detail);
@@ -65,4 +71,11 @@
   document.body.addEventListener("htmx:responseError", () => {
     if (liveRegion) liveRegion.textContent = "操作未完成；本地数据没有被覆盖，请重试。";
   });
+
+  document.addEventListener("submit", (event) => {
+    const message = event.target?.dataset?.confirm;
+    if (!message || window.confirm(message)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
 })();

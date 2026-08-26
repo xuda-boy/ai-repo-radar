@@ -30,6 +30,10 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3-5 3V4Z"/></svg>
               <span>收藏</span>
             </a>
+            <a class="nav-item{% if page == 'feedback' %} is-active{% endif %}" href="/feedback" {% if page == 'feedback' %}aria-current="page"{% endif %}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v11H9l-4 3V5Z M8 9h8 M8 12h5"/></svg>
+              <span>反馈</span>
+            </a>
           </nav>
           <span class="local-label">LOCAL · 127.0.0.1</span>
         </aside>

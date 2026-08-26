@@ -109,6 +109,12 @@ def rebuild_cache(store: JsonDataStore, database_path: Path) -> Path:
     snapshots = store.load_snapshots()
     profile = store.load_interest_profile()
     lookup = _recommendation_lookup(reports)
+    revoked_event_ids = {
+        event.reverts_event_id
+        for event in events
+        if event.action == FeedbackAction.REVOKE and event.reverts_event_id is not None
+    }
+    active_saves: dict[str, FeedbackEvent] = {}
 
     with closing(_connect(temporary)) as connection:
         connection.executescript(SCHEMA)
@@ -162,21 +168,23 @@ def rebuild_cache(store: JsonDataStore, database_path: Path) -> Path:
                     _payload(event),
                 ),
             )
-            if event.action == FeedbackAction.SAVE:
-                recommendation = (
-                    lookup.get((event.report_date, cache_repo_full_name))
-                    if event.report_date
-                    else None
-                )
-                connection.execute(
-                    "INSERT OR REPLACE INTO saved VALUES (?, ?, ?, ?)",
-                    (
-                        cache_repo_full_name,
-                        event.created_at.isoformat(),
-                        event.report_date.isoformat() if event.report_date else None,
-                        _payload(recommendation) if recommendation else None,
-                    ),
-                )
+            if event.action == FeedbackAction.SAVE and event.event_id not in revoked_event_ids:
+                active_saves[cache_repo_full_name] = event
+        for cache_repo_full_name, event in active_saves.items():
+            recommendation = (
+                lookup.get((event.report_date, cache_repo_full_name))
+                if event.report_date
+                else None
+            )
+            connection.execute(
+                "INSERT OR REPLACE INTO saved VALUES (?, ?, ?, ?)",
+                (
+                    cache_repo_full_name,
+                    event.created_at.isoformat(),
+                    event.report_date.isoformat() if event.report_date else None,
+                    _payload(recommendation) if recommendation else None,
+                ),
+            )
         for topic, weight in profile.weights.items():
             connection.execute(
                 "INSERT INTO interest_profile VALUES (?, ?, ?)",
@@ -234,9 +242,9 @@ class CacheRepository:
             rows = connection.execute(
                 """
                 SELECT r.report_date, r.status, r.model_status, r.recommendation_count,
-                       COALESCE(SUM(CASE WHEN f.action = 'save' THEN 1 ELSE 0 END), 0) AS saved_count
+                       COUNT(s.repo_full_name) AS saved_count
                 FROM reports r
-                LEFT JOIN feedback_events f ON f.report_date = r.report_date
+                LEFT JOIN saved s ON s.report_date = r.report_date
                 GROUP BY r.report_date
                 ORDER BY r.report_date DESC
                 """
@@ -272,10 +280,19 @@ class CacheRepository:
             rows = connection.execute(
                 "SELECT payload_json FROM feedback_events ORDER BY created_at"
             ).fetchall()
+        events = [FeedbackEvent.model_validate_json(row["payload_json"]) for row in rows]
+        revoked_event_ids = {
+            event.reverts_event_id
+            for event in events
+            if event.action == FeedbackAction.REVOKE and event.reverts_event_id is not None
+        }
         result: dict[str, FeedbackEvent] = {}
-        for row in rows:
-            event = FeedbackEvent.model_validate_json(row["payload_json"])
-            if event.report_date == report_date:
+        for event in events:
+            if (
+                event.report_date == report_date
+                and event.action != FeedbackAction.REVOKE
+                and event.event_id not in revoked_event_ids
+            ):
                 result[canonical_fixture_repository_name(event.repo_full_name)] = event
         return result
 
