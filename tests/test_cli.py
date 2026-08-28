@@ -46,3 +46,32 @@ def test_sample_can_refresh_an_existing_fixture_report(tmp_path) -> None:
     assert first.exit_code == 0
     assert second.exit_code == 0
     assert "ReportAlreadyExistsError" not in second.output
+
+
+def test_daily_can_skip_an_existing_report_without_credentials(tmp_path) -> None:
+    data_dir = tmp_path / "data"
+    database = tmp_path / "radar.sqlite3"
+    runner = CliRunner()
+    sample = runner.invoke(
+        app,
+        ["sample", "--data-dir", str(data_dir), "--database", str(database)],
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "daily",
+            "--data-dir",
+            str(data_dir),
+            "--database",
+            str(database),
+            "--date",
+            "2026-08-25",
+            "--skip-existing",
+        ],
+    )
+
+    assert sample.exit_code == 0
+    assert result.exit_code == 0
+    assert "skipped live collection" in result.output
+    assert "GITHUB_TOKEN" not in result.output

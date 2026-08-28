@@ -4,7 +4,7 @@
 
 English: a local-first, explainable AI GitHub repository radar with deterministic ranking, optional MiniMax-M3 content enrichment, an append-only private data repository, and a FastAPI + Jinja + HTMX dashboard.
 
-> v0.1.0 已完成固定样例、核心推荐链路、云端客户端、本地 Dashboard、反馈 outbox、两仓 workflow 与自动化测试。真实 Secret 冒烟和连续 7 天线上运行必须在你自己的私有仓完成。
+> v0.2.0 已完成反馈撤回、Dashboard 自动拉取、MiniMax 真实增强、定时任务幂等补跑及两仓版本兼容。
 
 ![AI Repo Radar Signal Ledger Dashboard](docs/assets/dashboard.png)
 
@@ -59,7 +59,7 @@ flowchart LR
 | `ai-repo-radar` | Public | Python 代码、样例、测试、可复用 workflow、文档 |
 | `ai-repo-radar-data` | Private | 日报、快照、反馈、兴趣画像、个人配置与 Actions Secrets |
 
-私有仓调用公开仓的 `radar-daily.yml@v0.1.0`，默认 `GITHUB_TOKEN` 只写调用方私有仓，不需要跨仓高权限 PAT。完整设计见 [架构说明](docs/ARCHITECTURE.md)。
+私有仓调用公开仓的 `radar-daily.yml@v0.2.0`，默认 `GITHUB_TOKEN` 只写调用方私有仓，不需要跨仓高权限 PAT。完整设计见 [架构说明](docs/ARCHITECTURE.md)。
 
 ## 运行真实每日任务
 
@@ -85,8 +85,8 @@ MiniMax 缺 Key、超时、限额或响应异常时，命令仍保存规则排�
 1. 将它创建为 GitHub **Private** 仓库。
 2. 把 `.github/workflows/daily.yml` 中两处 `your-github-owner` 改成真实 owner。
 3. 在私有仓 Actions Secrets 新增 `MINIMAX_API_KEY`。
-4. 公开代码仓发布不可变 tag `v0.1.0`。
-5. 手动运行一次，再启用北京时间 08:30 的日程。
+4. 公开代码仓发布不可变 tag `v0.2.0`。
+5. 手动运行一次，再启用北京时间 08:17 起的多时段幂等补跑。
 
 私有仓 workflow 自动使用调用仓的 `github.token` 读取 GitHub API，并只提交 `data/`。详见 [运维手册](docs/OPERATIONS.md)。
 
@@ -102,13 +102,26 @@ uv run ai-repo-radar sync-data `
 
 样例或普通目录会明确显示“反馈仅本地”，不会误执行推送。断网、远端冲突或凭据不可用时，事件转为 `pending_retry` 并保留在 outbox。同步器复用 Git Credential Manager 或 Git 自身凭据，不读取或保存明文 Token。
 
+## Dashboard 自动更新
+
+正式 Dashboard 使用私人数据仓作为 `data-dir` 时，后台默认每 5 分钟只读拉取一次云端事实并原子重建 SQLite；自动检查不会推送本地反馈。页面每分钟检查一次日报版本，发现新日期后自动重载。顶部任务状态会区分“今日数据”“等待今日日报”“数据已过期”和“固定样例”，也可点击“立即检查更新”。
+
+自动检查间隔可在 `[dashboard]` 中配置，设为 `0` 可关闭后台检查：
+
+```toml
+[dashboard]
+auto_sync_interval_seconds = 300
+```
+
+固定样例和普通目录不会执行 Git 拉取，并会在页面中明确显示自动更新不可用。
+
 ## CLI
 
 | 命令 | 用途 |
 |---|---|
 | `sample` | 跑固定 JSON 的候选 → 日报 → SQLite 闭环 |
 | `daily` | 调用 GitHub 与 MiniMax，生成真实日报 |
-| `serve` | 尝试同步私有仓、重建缓存并启动本地 Dashboard |
+| `serve` | 同步私有仓、重建缓存、启动 Dashboard，并定时拉取新日报 |
 | `sync-data` | 重试 outbox，同步私有事实并重建缓存 |
 | `rebuild-cache` | 只从 JSON 重建 SQLite |
 | `profile` | 查看可解释 Topic 权重 |

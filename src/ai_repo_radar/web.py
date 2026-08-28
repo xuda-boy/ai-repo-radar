@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import secrets
 import threading
 from collections import Counter
-from datetime import UTC, date, datetime
+from contextlib import asynccontextmanager
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 from uuid import UUID
@@ -25,11 +27,21 @@ from ai_repo_radar.models import (
     RecommendationKind,
     SyncStatus,
 )
-from ai_repo_radar.sample_data import canonical_fixture_repository_name, is_fixture_repository
+from ai_repo_radar.sample_data import (
+    canonical_fixture_repository_name,
+    is_fixture_report,
+    is_fixture_repository,
+)
 from ai_repo_radar.storage import JsonDataStore
-from ai_repo_radar.sync import private_repository_root, sync_private_data_safely
+from ai_repo_radar.sync import (
+    private_repository_root,
+    pull_private_data_safely,
+    sync_private_data_safely,
+)
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
+LOGGER = logging.getLogger(__name__)
+BEIJING = timezone(timedelta(hours=8), name="Asia/Shanghai")
 KIND_LABELS = {
     RecommendationKind.INTEREST: "兴趣匹配",
     RecommendationKind.RISING: "快速涨星",
@@ -225,6 +237,68 @@ def _sync_tone(status: SyncStatus) -> str:
     return "warning"
 
 
+def _beijing_time(value: datetime) -> datetime:
+    current = value if value.tzinfo else value.replace(tzinfo=UTC)
+    return current.astimezone(BEIJING)
+
+
+def _data_freshness(
+    report: DailyReport | None,
+    *,
+    configured: bool,
+    now: datetime | None = None,
+) -> dict[str, str]:
+    if report is None:
+        return {
+            "label": "尚无日报",
+            "tone": "error" if configured else "warning",
+            "detail": "还没有可展示的日报；请先运行每日任务。",
+        }
+    if is_fixture_report(report):
+        return {
+            "label": "固定样例",
+            "tone": "sample",
+            "detail": f"当前为 {report.report_date.isoformat()} 固定样例，不会自动更新。",
+        }
+    if not configured:
+        return {
+            "label": "本地数据",
+            "tone": "warning",
+            "detail": (
+                f"最新日报为 {report.report_date.isoformat()}；"
+                "当前目录未连接私人 Git 仓，无法自动拉取。"
+            ),
+        }
+
+    current = now.astimezone(BEIJING) if now else datetime.now(BEIJING)
+    lag_days = max(0, (current.date() - report.report_date).days)
+    if lag_days == 0:
+        return {
+            "label": "今日数据",
+            "tone": "success",
+            "detail": f"已加载 {report.report_date.isoformat()} 日报。",
+        }
+    if lag_days == 1:
+        return {
+            "label": "等待今日日报",
+            "tone": "warning",
+            "detail": f"当前仍是 {report.report_date.isoformat()}，后台会继续检查云端更新。",
+        }
+    return {
+        "label": f"数据已过期 {lag_days} 天",
+        "tone": "error",
+        "detail": f"最新日报停留在 {report.report_date.isoformat()}，建议立即检查更新。",
+    }
+
+
+def _interval_label(seconds: float) -> str:
+    if seconds <= 0:
+        return "已关闭"
+    if seconds < 60:
+        return f"{int(seconds)} 秒"
+    return f"{max(1, round(seconds / 60))} 分钟"
+
+
 def _same_origin(request: Request) -> bool:
     value = request.headers.get("origin") or request.headers.get("referer")
     if not value:
@@ -238,7 +312,14 @@ def _same_origin(request: Request) -> bool:
     return parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"}
 
 
-def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
+def create_app(
+    *,
+    data_root: Path,
+    database_path: Path,
+    auto_sync_interval_seconds: float = 300,
+) -> FastAPI:
+    if auto_sync_interval_seconds < 0:
+        raise ValueError("auto sync interval cannot be negative")
     store = JsonDataStore(data_root)
     store.initialize()
     resolved_database = database_path.expanduser().resolve()
@@ -250,12 +331,31 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
     templates.env.filters["delta"] = _format_delta
     templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        worker: threading.Thread | None = None
+        if application.state.sync_configured and auto_sync_interval_seconds > 0:
+            worker = threading.Thread(
+                target=application.state.auto_refresh_worker,
+                name="ai-repo-radar-auto-refresh",
+                daemon=True,
+            )
+            application.state.auto_refresh_thread = worker
+            worker.start()
+        try:
+            yield
+        finally:
+            application.state.auto_refresh_stop.set()
+            if worker:
+                worker.join(timeout=2)
+
     app = FastAPI(
         title="AI Repo Radar",
-        version="0.1.0",
+        version="0.2.0",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=lifespan,
     )
     app.state.csrf_token = secrets.token_urlsafe(32)
     app.state.store = store
@@ -263,6 +363,95 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
     app.state.sync_lock = threading.Lock()
     app.state.feedback_lock = threading.Lock()
     app.state.sync_configured = private_repository_root(store.root) is not None
+    app.state.auto_sync_interval_seconds = auto_sync_interval_seconds
+    app.state.auto_refresh_stop = threading.Event()
+    app.state.auto_refresh_thread = None
+    app.state.last_data_refresh_at = datetime.now(UTC) if app.state.sync_configured else None
+    app.state.last_data_refresh_success = None
+    app.state.last_data_refresh_error_category = None
+
+    def refresh_private_data(*, blocking: bool = False) -> dict[str, object]:
+        if not app.state.sync_configured:
+            return {
+                "success": False,
+                "busy": False,
+                "changed": False,
+                "message": "当前数据目录未连接私人 Git 仓，无法检查云端日报。",
+                "tone": "warning",
+                "report_date": cache.latest_report().report_date
+                if cache.latest_report()
+                else None,
+            }
+        if not app.state.sync_lock.acquire(blocking=blocking):
+            return {
+                "success": False,
+                "busy": True,
+                "changed": False,
+                "message": "已有更新或反馈同步正在运行，请稍后再试。",
+                "tone": "warning",
+                "report_date": cache.latest_report().report_date
+                if cache.latest_report()
+                else None,
+            }
+
+        before = cache.latest_report()
+        before_date = before.report_date if before else None
+        try:
+            result = pull_private_data_safely(store)
+            if result.success and result.changed:
+                rebuild_cache(store, resolved_database)
+            after = cache.latest_report()
+            after_date = after.report_date if after else None
+            changed = result.changed or before_date != after_date
+            app.state.last_data_refresh_at = datetime.now(UTC)
+            app.state.last_data_refresh_success = result.success
+            app.state.last_data_refresh_error_category = result.error_category
+            if not result.success:
+                message = (
+                    "更新未完成，当前数据没有被覆盖。"
+                    "请检查网络、私人仓工作树与 Git 凭据。"
+                )
+                tone = "error"
+            elif after_date != before_date and after_date is not None:
+                message = f"已更新至 {after_date.isoformat()} 日报。"
+                tone = "success"
+            elif changed:
+                message = "私人数据已更新，当前最新日报日期未变化。"
+                tone = "success"
+            else:
+                message = "已检查云端，当前没有新日报。"
+                tone = "success"
+            return {
+                "success": result.success,
+                "busy": False,
+                "changed": changed,
+                "message": message,
+                "tone": tone,
+                "report_date": after_date,
+            }
+        except Exception:
+            LOGGER.exception("automatic private data refresh failed")
+            app.state.last_data_refresh_at = datetime.now(UTC)
+            app.state.last_data_refresh_success = False
+            app.state.last_data_refresh_error_category = "cache_error"
+            current = cache.latest_report()
+            return {
+                "success": False,
+                "busy": False,
+                "changed": False,
+                "message": "缓存更新未完成，当前数据没有被覆盖，请稍后重试。",
+                "tone": "error",
+                "report_date": current.report_date if current else None,
+            }
+        finally:
+            app.state.sync_lock.release()
+
+    def auto_refresh_worker() -> None:
+        while not app.state.auto_refresh_stop.wait(auto_sync_interval_seconds):
+            refresh_private_data()
+
+    app.state.refresh_private_data = refresh_private_data
+    app.state.auto_refresh_worker = auto_refresh_worker
     app.mount("/static", StaticFiles(directory=PACKAGE_ROOT / "static"), name="static")
 
     @app.middleware("http")
@@ -284,10 +473,25 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
         *,
         message: str | None = None,
         tone: str | None = None,
+        data_message: str | None = None,
+        data_tone: str | None = None,
+        latest_report: DailyReport | None = None,
     ) -> dict[str, object]:
         pending_events = list(reversed(store.pending_feedback_events()))
         pending = len(pending_events)
         configured = bool(app.state.sync_configured)
+        current_report = latest_report or cache.latest_report()
+        freshness = _data_freshness(current_report, configured=configured)
+        if freshness["tone"] in {"warning", "error", "sample"}:
+            system_label = freshness["label"]
+            system_tone = freshness["tone"]
+        elif pending:
+            system_label = _sync_label(pending, configured=configured)
+            system_tone = "warning"
+        else:
+            system_label = "今日数据已同步"
+            system_tone = "success"
+        refreshed_at = app.state.last_data_refresh_at
         return {
             "request": request,
             "pending_sync": pending,
@@ -304,6 +508,20 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
             "sync_label": _sync_label(pending, configured=configured),
             "sync_message": message,
             "sync_tone": tone,
+            "data_freshness_label": freshness["label"],
+            "data_freshness_tone": freshness["tone"],
+            "data_freshness_detail": freshness["detail"],
+            "data_refresh_message": data_message,
+            "data_refresh_tone": data_tone,
+            "data_last_checked": (
+                _beijing_time(refreshed_at).strftime("%m-%d %H:%M")
+                if refreshed_at
+                else "尚未检查"
+            ),
+            "auto_sync_interval_label": _interval_label(auto_sync_interval_seconds),
+            "auto_sync_enabled": configured and auto_sync_interval_seconds > 0,
+            "system_status_label": system_label,
+            "system_status_tone": system_tone,
             "csrf_token": app.state.csrf_token,
         }
 
@@ -316,7 +534,7 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
             "page_subtitle": subtitle,
             "latest_report": latest,
         }
-        context.update(sync_context(request))
+        context.update(sync_context(request, latest_report=latest))
         return context
 
     def feedback_ledger_context(request: Request) -> dict[str, object]:
@@ -398,6 +616,64 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/data-status")
+    def data_status(request: Request) -> dict[str, object]:
+        latest = cache.latest_report()
+        context = sync_context(request, latest_report=latest)
+        return {
+            "report_date": latest.report_date.isoformat() if latest else None,
+            "label": context["data_freshness_label"],
+            "tone": context["data_freshness_tone"],
+            "detail": context["data_freshness_detail"],
+            "last_checked": context["data_last_checked"],
+            "system_label": context["system_status_label"],
+            "system_tone": context["system_status_tone"],
+            "configured": context["sync_configured"],
+        }
+
+    @app.post("/refresh-data", response_class=HTMLResponse)
+    def refresh_data(
+        request: Request,
+        csrf_token: str = Form(...),
+    ):
+        if not hmac.compare_digest(csrf_token, app.state.csrf_token) or not _same_origin(request):
+            raise HTTPException(status_code=403, detail="invalid local form token")
+
+        outcome = refresh_private_data()
+        latest = cache.latest_report()
+        context = sync_context(
+            request,
+            data_message=str(outcome["message"]),
+            data_tone=str(outcome["tone"]),
+            latest_report=latest,
+        )
+        if request.headers.get("HX-Request") != "true":
+            return RedirectResponse(url="/", status_code=303)
+        response = templates.TemplateResponse(
+            request=request,
+            name="partials/data_refresh_panel.html",
+            context=context,
+        )
+        response.headers["HX-Trigger"] = json.dumps(
+            {
+                "radar:dataUpdated": {
+                    "message": outcome["message"],
+                    "reportDate": latest.report_date.isoformat() if latest else None,
+                    "label": context["data_freshness_label"],
+                    "tone": context["data_freshness_tone"],
+                    "detail": context["data_freshness_detail"],
+                    "lastChecked": context["data_last_checked"],
+                    "systemLabel": context["system_status_label"],
+                    "systemTone": context["system_status_tone"],
+                    "changed": outcome["changed"],
+                }
+            },
+            ensure_ascii=True,
+        )
+        if outcome["changed"]:
+            response.headers["HX-Refresh"] = "true"
+        return response
 
     @app.get("/", response_class=HTMLResponse)
     def today(request: Request, repo: str | None = None):
@@ -577,6 +853,9 @@ def create_app(*, data_root: Path, database_path: Path) -> FastAPI:
             try:
                 result = sync_private_data_safely(store)
                 rebuild_cache(store, resolved_database)
+                app.state.last_data_refresh_at = datetime.now(UTC)
+                app.state.last_data_refresh_success = result.success
+                app.state.last_data_refresh_error_category = result.error_category
             finally:
                 app.state.sync_lock.release()
             if result.success:

@@ -19,6 +19,7 @@ class SyncResult:
     success: bool
     synced_events: int
     branch: str | None
+    changed: bool = False
     error_category: str | None = None
     message: str | None = None
 
@@ -115,6 +116,47 @@ def sync_private_data(store: JsonDataStore) -> SyncResult:
     for event in pending:
         store.remove_from_outbox(event.event_id)
     return SyncResult(success=True, synced_events=len(pending), branch=branch)
+
+
+def pull_private_data(store: JsonDataStore) -> SyncResult:
+    """Fast-forward local private facts without publishing local feedback."""
+    repository = private_repository_root(store.root)
+    if repository is None:
+        raise GitSyncError(
+            f"data root is not inside a repository marked with {PRIVATE_REPOSITORY_SENTINEL}"
+        )
+    _ensure_clean(repository)
+    branch = _git(repository, "branch", "--show-current").stdout.strip()
+    if not branch:
+        raise GitSyncError("private data repository is in detached HEAD state")
+    if _git(repository, "remote", "get-url", "origin", check=False).returncode != 0:
+        raise GitSyncError("private data repository has no origin remote")
+
+    before = _git(repository, "rev-parse", "HEAD").stdout.strip()
+    _git(repository, "fetch", "--prune", "origin")
+    if _remote_branch_exists(repository, branch):
+        _git(repository, "rebase", f"origin/{branch}")
+    after = _git(repository, "rev-parse", "HEAD").stdout.strip()
+    return SyncResult(
+        success=True,
+        synced_events=0,
+        branch=branch,
+        changed=before != after,
+    )
+
+
+def pull_private_data_safely(store: JsonDataStore) -> SyncResult:
+    try:
+        return pull_private_data(store)
+    except (GitSyncError, OSError) as error:
+        category = "not_configured" if private_repository_root(store.root) is None else "git_error"
+        return SyncResult(
+            success=False,
+            synced_events=0,
+            branch=None,
+            error_category=category,
+            message=str(error),
+        )
 
 
 def sync_private_data_safely(store: JsonDataStore) -> SyncResult:

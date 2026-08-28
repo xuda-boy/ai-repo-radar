@@ -47,6 +47,7 @@ class DashboardConfig:
     host: str = "127.0.0.1"
     port: int = 8765
     open_browser: bool = True
+    auto_sync_interval_seconds: int = 300
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,8 @@ class RadarConfig:
             raise ValueError("daily recommendation count must equal the quota sum")
         if self.dashboard.host != "127.0.0.1":
             raise ValueError("the dashboard must bind to 127.0.0.1")
+        if not 0 <= self.dashboard.auto_sync_interval_seconds <= 86_400:
+            raise ValueError("dashboard auto sync interval must be between 0 and 86400 seconds")
         weights = (
             self.scoring.quality_weight,
             self.scoring.interest_weight,

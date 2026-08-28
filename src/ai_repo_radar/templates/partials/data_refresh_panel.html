@@ -1,0 +1,44 @@
+<div class="data-refresh-panel" id="data-refresh-panel">
+  <div class="status-row data-status-row">
+    <span>GitHub 日报</span>
+    <strong id="data-freshness-label" class="{{ data_freshness_tone }}">
+      {{ data_freshness_label }}
+    </strong>
+  </div>
+
+  <p class="data-freshness-detail" id="data-freshness-detail">
+    {{ data_freshness_detail }}
+  </p>
+
+  <dl class="refresh-meta" aria-label="自动更新信息">
+    <div><dt>自动检查</dt><dd>{{ auto_sync_interval_label }}</dd></div>
+    <div><dt>上次检查</dt><dd id="data-last-checked">{{ data_last_checked }}</dd></div>
+  </dl>
+
+  {% if data_refresh_message %}
+    <p class="sync-result is-{{ data_refresh_tone or 'warning' }}" role="status">
+      {{ data_refresh_message }}
+    </p>
+  {% endif %}
+
+  {% if sync_configured %}
+    <form
+      class="refresh-form"
+      method="post"
+      action="/refresh-data"
+      hx-post="/refresh-data"
+      hx-target="#data-refresh-panel"
+      hx-swap="outerHTML"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="refresh-submit" type="submit">
+        <span class="refresh-button-ready">立即检查更新</span>
+        <span class="refresh-button-loading">检查中…</span>
+      </button>
+    </form>
+    <p class="refresh-help">只拉取私人仓日报，不会自动推送本地反馈。</p>
+  {% else %}
+    <button class="refresh-submit" type="button" disabled>自动更新不可用</button>
+    <p class="refresh-help">请使用私人数据仓作为 data-dir 启动仪表盘。</p>
+  {% endif %}
+</div>

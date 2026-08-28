@@ -10,8 +10,13 @@ on:
       code_ref:
         description: Immutable public release tag.
         required: false
-        default: v0.1.0
+        default: v0.2.0
         type: string
+      force:
+        description: Replace today's normal report after explicit manual review.
+        required: false
+        default: false
+        type: boolean
       data_directory:
         description: Private fact directory relative to the caller repository.
         required: false
@@ -71,11 +76,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-        run: >-
-          uv run ai-repo-radar daily
-          --data-dir "${{ github.workspace }}/private-data/${{ inputs.data_directory }}"
-          --database "${{ runner.temp }}/radar.sqlite3"
-          --config "${{ github.workspace }}/private-data/${{ inputs.config_path }}"
+          FORCE_REPLACE: ${{ inputs.force }}
+        run: |
+          args=(
+            daily
+            --data-dir "${{ github.workspace }}/private-data/${{ inputs.data_directory }}"
+            --database "${{ runner.temp }}/radar.sqlite3"
+            --config "${{ github.workspace }}/private-data/${{ inputs.config_path }}"
+          )
+          if [[ "$FORCE_REPLACE" == "true" ]]; then
+            args+=(--replace-report)
+          else
+            args+=(--skip-existing)
+          fi
+          uv run ai-repo-radar "${args[@]}"
 
       - name: Commit append-only facts
         working-directory: private-data
@@ -88,7 +102,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No new private facts to commit." >> "$GITHUB_STEP_SUMMARY"
           else
-            git commit -m "data: daily radar $(date -u +%F)"
+            git commit -m "data: daily radar $(TZ=Asia/Shanghai date +%F)"
             git push
             echo "Daily JSON facts committed to the private repository." >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -99,6 +113,7 @@ jobs:
           {
             echo "### AI Repo Radar"
             echo "- Public implementation: \`${{ inputs.code_repository }}@${{ inputs.code_ref }}\`"
+            echo "- Scheduled retries are idempotent; an existing daily report exits successfully before API calls."
             echo "- Manual retry: Actions → Daily AI Repo Radar → Run workflow"
             echo "- MiniMax failure degrades the report; GitHub/data failures fail this job."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -73,7 +73,7 @@ class GitHubClient:
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": config.api_version,
-            "User-Agent": "ai-repo-radar/0.1.0",
+            "User-Agent": "ai-repo-radar/0.2.0",
         }
         if token:
             headers["Authorization"] = f"Bearer {token}"

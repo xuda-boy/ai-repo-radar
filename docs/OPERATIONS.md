@@ -2,7 +2,7 @@
 
 ## GitHub Actions 首跑
 
-1. 公开仓 CI 全绿后创建 release tag `v0.1.0`。
+1. 公开仓 CI 全绿后创建 release tag `v0.2.0`。
 2. 私有数据仓保持 `main` 默认分支，并确认 `.ai-repo-radar-private` 已提交。
 3. 修改私有仓 workflow 的 `your-github-owner`。
 4. 新增私有 Actions Secret `MINIMAX_API_KEY`；不需要自建 `GITHUB_TOKEN`。
@@ -11,7 +11,7 @@
 
 ## 补跑
 
-同一天已有正常日报时，默认任务会拒绝覆盖。如果任务在 JSON 写入前失败，直接手动重跑；如果确实要替换正常日报，先在本地审阅差异，再显式使用 `daily --replace-report`。不要在无人审阅的定时 workflow 中默认开启替换。
+定时任务使用 `daily --skip-existing`：同一天已有日报时会在任何网络调用前成功退出，因此可安全安排多个补跑时段。如果任务在 JSON 写入前失败，后续时段会再次尝试；如果确实要替换正常日报，先审阅差异，再在手动 workflow 中勾选 `force`，它会显式使用 `daily --replace-report`。定时 workflow 永不默认覆盖。
 
 ## MiniMax 降级
 
@@ -26,6 +26,8 @@ GitHub 限流、持续 5xx、网络失败或数据写入错误会使 workflow �
 ## 本地同步冲突
 
 正式仪表盘顶部状态面板会列出待同步反馈；点击“立即同步到私有仓”会执行与 `sync-data` 相同的安全流程。样例目录只显示“仅本地”，不会推送。
+
+正式仪表盘还会默认每 5 分钟执行一次 pull-only 检查：只拉取云端日报并重建派生缓存，不会自动提交或推送反馈。顶部“立即检查更新”执行同一流程；发现新日报后页面自动重载。若状态为“等待今日日报”，说明云端定时任务尚未产出当天报告；“数据已过期”则应同时检查 Actions 运行记录、网络和本地 Git 工作树。
 
 同步要求私有仓没有无关工作树修改。若页面或 `sync-data` 提示失败：
 

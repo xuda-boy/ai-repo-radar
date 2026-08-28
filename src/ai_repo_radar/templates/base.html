@@ -10,7 +10,11 @@
     <script defer src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
     <script defer src="{{ url_for('static', path='/app.js') }}"></script>
   </head>
-  <body>
+  <body
+    data-report-date="{{ latest_report.report_date.isoformat() if latest_report else '' }}"
+    data-auto-sync="{{ 'true' if auto_sync_enabled else 'false' }}"
+    data-status-url="/data-status"
+  >
     <div class="radar-window">
       <div class="radar-shell">
         <aside class="product-rail" aria-label="全局导航">
@@ -50,14 +54,21 @@
               {% else %}
                 <span class="context-date">WAITING FOR FIRST REPORT</span>
               {% endif %}
-              <button class="system-status{% if pending_sync %} has-pending{% endif %}" id="system-status" type="button" aria-expanded="false" aria-controls="status-popover">
+              <button
+                class="system-status{% if system_status_tone in ['warning', 'sample'] %} has-pending{% elif system_status_tone == 'error' %} has-error{% endif %}"
+                id="system-status"
+                type="button"
+                aria-expanded="false"
+                aria-controls="status-popover"
+                data-freshness-tone="{{ data_freshness_tone }}"
+              >
                 <span class="status-dot" aria-hidden="true"></span>
-                <span id="sync-label">{{ sync_label }}</span>
+                <span id="sync-label">{{ system_status_label }}</span>
               </button>
             </div>
             <section class="status-popover" id="status-popover" hidden aria-label="今日任务状态">
               <h2>今日任务状态</h2>
-              <div class="status-row"><span>GitHub 数据</span><strong>{{ '已完成' if latest_report else '未生成' }}</strong></div>
+              {% include "partials/data_refresh_panel.html" %}
               <div class="status-row"><span>MiniMax-M3</span><strong class="{% if latest_report and latest_report.model_status.value == 'degraded' %}warning{% endif %}">{% if not latest_report %}等待日报{% elif latest_report.model_status.value == 'enhanced' %}正常{% elif latest_report.model_status.value == 'degraded' %}已降级{% else %}未调用{% endif %}</strong></div>
               {% include "partials/sync_panel.html" %}
             </section>
@@ -69,7 +80,7 @@
 
       <footer class="radar-footer">
         <span>AI REPO RADAR · PRIVATE SIGNAL LEDGER · LOCAL FIRST</span>
-        <span id="live-region" aria-live="polite">{{ sync_label }}</span>
+        <span id="live-region" aria-live="polite">{{ system_status_label }}</span>
       </footer>
     </div>
   </body>

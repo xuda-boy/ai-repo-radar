@@ -288,6 +288,12 @@ svg {
   border-color: #dfca9f;
 }
 
+.system-status.has-error {
+  color: #8b402c;
+  background: #f9ebe6;
+  border-color: #ebcfc5;
+}
+
 .status-dot {
   width: 7px;
   height: 7px;
@@ -298,6 +304,11 @@ svg {
 .has-pending .status-dot {
   background: #c18325;
   box-shadow: 0 0 0 3px rgba(193, 131, 37, 0.14);
+}
+
+.has-error .status-dot {
+  background: var(--orange-dark);
+  box-shadow: 0 0 0 3px rgba(196, 69, 37, 0.12);
 }
 
 .status-popover {
@@ -341,8 +352,67 @@ svg {
   font-weight: 600;
 }
 
-.status-row strong.warning {
+.status-row strong.warning,
+.status-row strong.sample {
   color: var(--ochre);
+}
+
+.status-row strong.error {
+  color: #8b402c;
+}
+
+.data-refresh-panel {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ded9cd;
+}
+
+.data-status-row {
+  border-top: 0;
+}
+
+.data-freshness-detail,
+.refresh-help {
+  overflow-wrap: anywhere;
+  color: #666b63;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.data-freshness-detail {
+  margin: 0 0 9px;
+}
+
+.refresh-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.refresh-meta div {
+  min-width: 0;
+  padding: 7px 8px;
+  background: #f4f2eb;
+  border: 1px solid #e0dcd2;
+}
+
+.refresh-meta dt {
+  color: #85877f;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+}
+
+.refresh-meta dd {
+  overflow-wrap: anywhere;
+  margin: 3px 0 0;
+  color: #3e433c;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.refresh-form {
+  margin-top: 9px;
 }
 
 .sync-panel {
@@ -455,7 +525,8 @@ svg {
   margin-top: 8px;
 }
 
-.sync-submit {
+.sync-submit,
+.refresh-submit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -471,19 +542,22 @@ svg {
   cursor: pointer;
 }
 
-.sync-submit:hover:not(:disabled) {
+.sync-submit:hover:not(:disabled),
+.refresh-submit:hover:not(:disabled) {
   background: var(--orange-dark);
   border-color: var(--orange-dark);
 }
 
-.sync-submit:disabled {
+.sync-submit:disabled,
+.refresh-submit:disabled {
   color: #777a72;
   background: #ece9e0;
   border-color: #d4d0c5;
   cursor: not-allowed;
 }
 
-.sync-button-loading {
+.sync-button-loading,
+.refresh-button-loading {
   display: none;
 }
 
@@ -495,8 +569,17 @@ svg {
   display: inline;
 }
 
+.refresh-form.htmx-request .refresh-button-ready {
+  display: none;
+}
+
+.refresh-form.htmx-request .refresh-button-loading {
+  display: inline;
+}
+
 .sync-help,
-.sync-disabled-reason {
+.sync-disabled-reason,
+.refresh-help {
   margin: 7px 0 0;
 }
 

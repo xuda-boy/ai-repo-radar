@@ -2,7 +2,7 @@
 
 ## Supported version
 
-`0.1.x` receives security fixes while the project remains in its initial release line.
+`0.2.x` receives security fixes while the project remains in its current release line.
 
 ## Report a vulnerability
 
@@ -16,4 +16,4 @@ Do not open a public issue containing credentials, private report contents, repo
 - MiniMax receives public repository metadata and a public README excerpt only.
 - The Git synchronizer refuses to run unless the repository contains `.ai-repo-radar-private`.
 
-If you expose the dashboard beyond localhost, add authentication, TLS, a reviewed proxy configuration and a new threat model first; that is outside v0.1.0.
+If you expose the dashboard beyond localhost, add authentication, TLS, a reviewed proxy configuration and a new threat model first; that is outside v0.2.0.

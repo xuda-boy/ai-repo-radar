@@ -97,6 +97,10 @@ def daily(
     config: Path | None = typer.Option(None, help="TOML configuration path."),
     report_date: str | None = typer.Option(None, "--date", help="Report date in YYYY-MM-DD."),
     replace_report: bool = typer.Option(False, help="Explicitly replace an existing normal report."),
+    skip_existing: bool = typer.Option(
+        False,
+        help="Exit successfully before network calls when the target report already exists.",
+    ),
     allow_unauthenticated: bool = typer.Option(
         False,
         help="Allow GitHub calls without a token; unsuitable for the default 300-candidate run.",
@@ -109,13 +113,22 @@ def daily(
         target_date = date.fromisoformat(report_date) if report_date else _beijing_today()
     except ValueError as error:
         raise typer.BadParameter("--date must use YYYY-MM-DD") from error
+    if replace_report and skip_existing:
+        raise typer.BadParameter("--replace-report and --skip-existing cannot be combined")
+    store = JsonDataStore(data_root)
+    store.initialize()
+    if skip_existing and store.report_path(target_date).exists():
+        rebuild_cache(store, db_path)
+        console.print(
+            f"[cyan]Report already exists for {target_date}; skipped live collection.[/cyan]"
+        )
+        return
     github_token = os.environ.get("GITHUB_TOKEN")
     if not github_token and not allow_unauthenticated:
         raise typer.BadParameter(
             "GITHUB_TOKEN is required for the default live run; use GitHub Actions or set it in the shell"
         )
     minimax_key = os.environ.get("MINIMAX_API_KEY")
-    store = JsonDataStore(data_root)
     with GitHubClient(github_token, radar.github) as github:
         collection = github.collect(today=target_date, radar=radar)
     with MiniMaxClient(minimax_key, radar.minimax) as minimax:
@@ -196,7 +209,11 @@ def serve(
     rebuild_cache(store, db_path)
     from ai_repo_radar.web import create_app
 
-    web_app = create_app(data_root=data_root, database_path=db_path)
+    web_app = create_app(
+        data_root=data_root,
+        database_path=db_path,
+        auto_sync_interval_seconds=radar.dashboard.auto_sync_interval_seconds,
+    )
     dashboard_port = port if port is not None else radar.dashboard.port
     url = f"http://{radar.dashboard.host}:{dashboard_port}"
     if radar.dashboard.open_browser and not no_browser:

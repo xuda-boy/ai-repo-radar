@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import threading
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +11,7 @@ import ai_repo_radar.web as web_module
 from ai_repo_radar.cache import rebuild_cache
 from ai_repo_radar.models import FeedbackAction
 from ai_repo_radar.pipeline import FixtureEnhancer, run_pipeline
-from ai_repo_radar.sync import SyncResult
+from ai_repo_radar.sync import PRIVATE_REPOSITORY_SENTINEL, SyncResult
 from ai_repo_radar.web import create_app
 
 
@@ -62,6 +65,219 @@ def test_dashboard_reads_today_history_and_partial_views(
     assert "高吞吐和显存效率" in partial.text
     assert "确认硬件兼容" in partial.text
     assert "A high-throughput, memory-efficient inference" in partial.text
+
+
+def test_dashboard_explains_fixture_freshness_and_disables_auto_update(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+
+    today = client.get("/")
+    status = client.get("/data-status").json()
+
+    assert "固定样例" in today.text
+    assert "不会自动更新" in today.text
+    assert "自动更新不可用" in today.text
+    assert status["report_date"] == sample_fixture.report_date.isoformat()
+    assert status["tone"] == "sample"
+    assert status["configured"] is False
+
+
+def test_data_freshness_distinguishes_today_waiting_and_expired(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    _client(sample_fixture, data_store, radar_config, tmp_path)
+    fixture_report = data_store.load_reports()[0]
+    real_recommendations = [
+        recommendation.model_copy(
+            update={
+                "repository": recommendation.repository.model_copy(
+                    update={"discovery_sources": ["github-search"]}
+                )
+            }
+        )
+        for recommendation in fixture_report.recommendations
+    ]
+    real_report = fixture_report.model_copy(update={"recommendations": real_recommendations})
+    now = datetime(2026, 8, 27, 1, 0, tzinfo=UTC)
+
+    today = real_report.model_copy(
+        update={"report_date": sample_fixture.report_date + timedelta(days=2)}
+    )
+    yesterday = real_report.model_copy(
+        update={"report_date": sample_fixture.report_date + timedelta(days=1)}
+    )
+
+    assert web_module._data_freshness(today, configured=True, now=now)["tone"] == "success"
+    assert web_module._data_freshness(yesterday, configured=True, now=now)["tone"] == "warning"
+    expired = web_module._data_freshness(real_report, configured=True, now=now)
+    assert expired["tone"] == "error"
+    assert expired["label"] == "数据已过期 2 天"
+
+
+def test_manual_data_refresh_reports_no_change(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    client.app.state.sync_configured = True
+    monkeypatch.setattr(
+        web_module,
+        "pull_private_data_safely",
+        lambda _store: SyncResult(
+            success=True,
+            synced_events=0,
+            branch="main",
+            changed=False,
+        ),
+    )
+
+    response = client.post(
+        "/refresh-data",
+        data={"csrf_token": client.app.state.csrf_token},
+        headers={"HX-Request": "true", "Origin": "http://127.0.0.1:8765"},
+    )
+    trigger = json.loads(response.headers["HX-Trigger"])["radar:dataUpdated"]
+
+    assert response.status_code == 200
+    assert "当前没有新日报" in response.text
+    assert response.headers.get("HX-Refresh") is None
+    assert trigger["changed"] is False
+
+
+def test_manual_data_refresh_rebuilds_cache_and_requests_reload(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    client.app.state.sync_configured = True
+    current = data_store.load_reports()[0]
+    next_report = current.model_copy(
+        update={
+            "report_date": current.report_date + timedelta(days=1),
+            "generated_at": current.generated_at + timedelta(days=1),
+        }
+    )
+
+    def fake_pull(store):
+        store.write_report(next_report)
+        return SyncResult(
+            success=True,
+            synced_events=0,
+            branch="main",
+            changed=True,
+        )
+
+    monkeypatch.setattr(web_module, "pull_private_data_safely", fake_pull)
+    response = client.post(
+        "/refresh-data",
+        data={"csrf_token": client.app.state.csrf_token},
+        headers={"HX-Request": "true", "Origin": "http://127.0.0.1:8765"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["HX-Refresh"] == "true"
+    assert next_report.report_date.isoformat() in response.text
+    assert client.get("/data-status").json()["report_date"] == next_report.report_date.isoformat()
+
+
+def test_manual_data_refresh_hides_raw_git_error(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    client.app.state.sync_configured = True
+    monkeypatch.setattr(
+        web_module,
+        "pull_private_data_safely",
+        lambda _store: SyncResult(
+            success=False,
+            synced_events=0,
+            branch=None,
+            error_category="git_error",
+            message=r"C:\private\repo and credential helper output",
+        ),
+    )
+
+    response = client.post(
+        "/refresh-data",
+        data={"csrf_token": client.app.state.csrf_token},
+        headers={"HX-Request": "true", "Origin": "http://127.0.0.1:8765"},
+    )
+
+    assert response.status_code == 200
+    assert "当前数据没有被覆盖" in response.text
+    assert "C:\\private" not in response.text
+
+
+def test_private_dashboard_runs_periodic_pull_worker(tmp_path, monkeypatch) -> None:
+    repository = tmp_path / "private"
+    repository.mkdir()
+    subprocess.run(
+        ["git", "-C", str(repository), "init", "-b", "main"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Test User"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    (repository / PRIVATE_REPOSITORY_SENTINEL).write_text("version=1\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(repository), "add", PRIVATE_REPOSITORY_SENTINEL],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "commit", "-m", "initialize private data"],
+        check=True,
+        capture_output=True,
+    )
+    called = threading.Event()
+
+    def fake_pull(_store):
+        called.set()
+        return SyncResult(success=True, synced_events=0, branch="main", changed=False)
+
+    monkeypatch.setattr(web_module, "pull_private_data_safely", fake_pull)
+    app = create_app(
+        data_root=repository / "data",
+        database_path=repository / ".cache" / "radar.sqlite3",
+        auto_sync_interval_seconds=0.02,
+    )
+
+    with TestClient(app) as client:
+        assert client.get("/healthz").status_code == 200
+        assert called.wait(timeout=1)
+
+    called.clear()
+    disabled_app = create_app(
+        data_root=repository / "data",
+        database_path=repository / ".cache" / "disabled.sqlite3",
+        auto_sync_interval_seconds=0,
+    )
+    with TestClient(disabled_app) as client:
+        assert 'data-auto-sync="false"' in client.get("/").text
+        assert disabled_app.state.auto_refresh_thread is None
+        assert called.is_set() is False
 
 
 def test_feedback_is_saved_locally_and_immediately_visible_in_saved_page(
@@ -257,7 +473,8 @@ def test_sample_feedback_is_clearly_marked_local_only(
         headers={"HX-Request": "true", "Origin": "http://127.0.0.1:8765"},
     )
 
-    assert "1 条反馈仅本地" in today.text
+    assert "固定样例" in today.text
+    assert "1 条仅本地" in today.text
     assert "当前使用的是样例或普通数据目录" in today.text
     assert "当前为仅本地模式" in today.text
     assert sync.status_code == 200

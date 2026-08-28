@@ -1,0 +1,48 @@
+{
+  "target": "http://127.0.0.1:8766",
+  "desktop": {
+    "title": "今日推荐 · AI Repo Radar",
+    "url": "http://127.0.0.1:8766/",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "bodyTextLength": 1037,
+    "bodyTextSample": "今日 历史 收藏 反馈 LOCAL · 127.0.0.1 今日推荐 在多条信号里，找到今天真正值得打开的项目。 2026-08-26 · 02:07 等待今日日报 TODAY / SIGNALS 8 项目 兴趣匹配 01 harry0703/MoneyPrinterTurbo 24H 估算 快照不足 兴趣匹配 02 hugohe3/ppt-master 24H 估算 快照不足 兴趣匹配 03 bojieli/ai-agent-book 24H 估算 快照不足 兴趣匹配 04",
+    "horizontalScroll": false,
+    "scrollWidth": 1425,
+    "textOverflow": [],
+    "smallButtons": [],
+    "blockingFixed": [],
+    "hasMain": true,
+    "screenshotPath": "D:\\Github\\ai-repo-radar\\docs\\auto-refresh-v1\\.design\\screenshots\\auto-refresh-final-desktop.png",
+    "screenshotBytes": 172117,
+    "blankRisk": false
+  },
+  "mobile": {
+    "title": "今日推荐 · AI Repo Radar",
+    "url": "http://127.0.0.1:8766/",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "bodyTextLength": 904,
+    "bodyTextSample": "今日 历史 收藏 反馈 今日推荐 2026-08-26 · 02:07 等待今日日报 TODAY / SIGNALS 8 项目 兴趣匹配 01 harry0703/MoneyPrinterTurbo 24H 估算 快照不足 兴趣匹配 02 hugohe3/ppt-master 24H 估算 快照不足 兴趣匹配 03 bojieli/ai-agent-book 24H 估算 快照不足 兴趣匹配 04 shareAI-lab/learn-claude-code 24H 估算 快照",
+    "horizontalScroll": false,
+    "scrollWidth": 390,
+    "textOverflow": [
+      {
+        "tag": "div",
+        "text": "兴趣匹配 01 harry0703/MoneyPrinterTurbo 24H 估算 快照不足 兴趣匹配 02 hugohe3/ppt-master 24H 估",
+        "clientWidth": 390,
+        "scrollWidth": 2434
+      }
+    ],
+    "smallButtons": [],
+    "blockingFixed": [],
+    "hasMain": true,
+    "screenshotPath": "D:\\Github\\ai-repo-radar\\docs\\auto-refresh-v1\\.design\\screenshots\\auto-refresh-final-mobile.png",
+    "screenshotBytes": 69740,
+    "blankRisk": false
+  }
+}

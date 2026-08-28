@@ -2,6 +2,7 @@
   const statusButton = document.querySelector("#system-status");
   const statusPopover = document.querySelector("#status-popover");
   const liveRegion = document.querySelector("#live-region");
+  const body = document.body;
 
   if (statusButton && statusPopover) {
     statusButton.addEventListener("click", () => {
@@ -41,13 +42,37 @@
     const label = detail.label || (configured
       ? (pending ? `${pending} 条反馈待同步` : "数据已同步")
       : (pending ? `${pending} 条反馈仅本地` : "仅本地模式"));
-    if (syncLabel) syncLabel.textContent = label;
+    const freshnessTone = statusButton?.dataset.freshnessTone || "success";
+    if (syncLabel && freshnessTone === "success") syncLabel.textContent = label;
     if (popoverSync) {
       popoverSync.textContent = configured
         ? (pending ? `${pending} 条待处理` : "无待处理")
         : (pending ? `${pending} 条仅本地` : "仅本地模式");
     }
-    if (statusButton) statusButton.classList.toggle("has-pending", pending > 0 || !configured);
+    if (statusButton && freshnessTone === "success") {
+      statusButton.classList.toggle("has-pending", pending > 0 || !configured);
+      statusButton.classList.remove("has-error");
+    }
+  };
+
+  const updateDataIndicators = (detail) => {
+    const freshnessLabel = document.querySelector("#data-freshness-label");
+    const freshnessDetail = document.querySelector("#data-freshness-detail");
+    const lastChecked = document.querySelector("#data-last-checked");
+    const tone = detail.tone || "warning";
+    const systemTone = detail.systemTone || tone;
+    if (freshnessLabel) {
+      freshnessLabel.textContent = detail.label || "状态未知";
+      freshnessLabel.className = tone;
+    }
+    if (freshnessDetail && detail.detail) freshnessDetail.textContent = detail.detail;
+    if (lastChecked && detail.lastChecked) lastChecked.textContent = detail.lastChecked;
+    if (statusButton) {
+      statusButton.dataset.freshnessTone = tone;
+      statusButton.classList.toggle("has-pending", ["warning", "sample"].includes(systemTone));
+      statusButton.classList.toggle("has-error", systemTone === "error");
+    }
+    if (syncLabel && detail.systemLabel) syncLabel.textContent = detail.systemLabel;
   };
 
   document.body.addEventListener("radar:feedbackSaved", (event) => {
@@ -68,6 +93,12 @@
     if (liveRegion) liveRegion.textContent = detail.message || "反馈同步状态已更新";
   });
 
+  document.body.addEventListener("radar:dataUpdated", (event) => {
+    const detail = event.detail || {};
+    updateDataIndicators(detail);
+    if (liveRegion) liveRegion.textContent = detail.message || "日报更新状态已刷新";
+  });
+
   document.body.addEventListener("htmx:responseError", () => {
     if (liveRegion) liveRegion.textContent = "操作未完成；本地数据没有被覆盖，请重试。";
   });
@@ -78,4 +109,36 @@
     event.preventDefault();
     event.stopImmediatePropagation();
   }, true);
+
+  const pollDataStatus = async () => {
+    if (document.hidden || body.dataset.autoSync !== "true") return;
+    try {
+      const response = await fetch(body.dataset.statusUrl || "/data-status", {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const detail = await response.json();
+      const currentReportDate = body.dataset.reportDate || "";
+      if (detail.report_date && detail.report_date !== currentReportDate) {
+        window.location.reload();
+        return;
+      }
+      updateDataIndicators({
+        label: detail.label,
+        tone: detail.tone,
+        detail: detail.detail,
+        lastChecked: detail.last_checked,
+        systemLabel: detail.system_label,
+        systemTone: detail.system_tone,
+      });
+    } catch (_error) {
+      // The existing page stays usable; the next interval retries silently.
+    }
+  };
+
+  if (body.dataset.autoSync === "true") {
+    window.setTimeout(pollDataStatus, 5000);
+    window.setInterval(pollDataStatus, 60000);
+  }
 })();
