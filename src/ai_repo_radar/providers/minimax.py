@@ -27,7 +27,7 @@ class MiniMaxClient:
         self.config = config
         headers = {
             "Content-Type": "application/json",
-            "User-Agent": "ai-repo-radar/0.2.0",
+            "User-Agent": "ai-repo-radar/0.2.1",
         }
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"

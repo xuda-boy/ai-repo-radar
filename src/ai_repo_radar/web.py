@@ -351,7 +351,7 @@ def create_app(
 
     app = FastAPI(
         title="AI Repo Radar",
-        version="0.2.0",
+        version="0.2.1",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -398,7 +398,7 @@ def create_app(
         before_date = before.report_date if before else None
         try:
             result = pull_private_data_safely(store)
-            if result.success and result.changed:
+            if result.success:
                 rebuild_cache(store, resolved_database)
             after = cache.latest_report()
             after_date = after.report_date if after else None

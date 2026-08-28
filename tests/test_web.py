@@ -193,6 +193,45 @@ def test_manual_data_refresh_rebuilds_cache_and_requests_reload(
     assert client.get("/data-status").json()["report_date"] == next_report.report_date.isoformat()
 
 
+def test_manual_data_refresh_rebuilds_cache_after_external_pull(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    client.app.state.sync_configured = True
+    current = data_store.load_reports()[0]
+    next_report = current.model_copy(
+        update={
+            "report_date": current.report_date + timedelta(days=1),
+            "generated_at": current.generated_at + timedelta(days=1),
+        }
+    )
+    data_store.write_report(next_report)
+    monkeypatch.setattr(
+        web_module,
+        "pull_private_data_safely",
+        lambda _store: SyncResult(
+            success=True,
+            synced_events=0,
+            branch="main",
+            changed=False,
+        ),
+    )
+
+    response = client.post(
+        "/refresh-data",
+        data={"csrf_token": client.app.state.csrf_token},
+        headers={"HX-Request": "true", "Origin": "http://127.0.0.1:8765"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["HX-Refresh"] == "true"
+    assert client.get("/data-status").json()["report_date"] == next_report.report_date.isoformat()
+
+
 def test_manual_data_refresh_hides_raw_git_error(
     sample_fixture,
     data_store,

@@ -2,7 +2,7 @@
 
 ## GitHub Actions 首跑
 
-1. 公开仓 CI 全绿后创建 release tag `v0.2.0`。
+1. 公开仓 CI 全绿后创建 release tag `v0.2.1`。
 2. 私有数据仓保持 `main` 默认分支，并确认 `.ai-repo-radar-private` 已提交。
 3. 修改私有仓 workflow 的 `your-github-owner`。
 4. 新增私有 Actions Secret `MINIMAX_API_KEY`；不需要自建 `GITHUB_TOKEN`。
