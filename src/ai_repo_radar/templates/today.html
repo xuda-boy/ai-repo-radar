@@ -1,54 +1,112 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="page-grid" aria-label="今日推荐工作台">
-    <aside class="signal-index" aria-label="今日项目索引">
-      <div class="index-head">
-        <span class="index-kicker">TODAY / SIGNALS</span>
-        <span class="index-count">{{ report.recommendations|length if report else 0 }} <small>项目</small></span>
+  <header class="page-hero">
+    <div>
+      <span class="page-eyebrow">Daily intelligence · {{ report.report_date.strftime('%m / %d') if report else 'waiting' }}</span>
+      <h1>今天值得关注的 AI 开源项目</h1>
+      <p>{{ page_subtitle }}</p>
+    </div>
+    {% if report %}
+      <aside class="report-date-card" aria-label="日报日期与状态">
+        <span>Report date</span>
+        <strong>{{ report.report_date.strftime('%Y 年 %m 月 %d 日') }}</strong>
+        <small class="{% if report.status.value == 'degraded' %}warning{% endif %}"><i aria-hidden="true"></i>{{ '模型降级' if report.status.value == 'degraded' else '正常 · 中文增强完成' }}</small>
+      </aside>
+    {% endif %}
+  </header>
+
+  <section class="daily-overview metric-overview" aria-label="今日数据概览">
+    <article class="overview-metric">
+      <div><span>今日推荐</span><b aria-hidden="true">≡</b></div>
+      <strong>{{ overview.recommendations }}</strong>
+      <small>从 <em>{{ overview.candidates }}</em> 个候选仓库筛选</small>
+    </article>
+    <article class="overview-metric">
+      <div><span>24h 新增 Star</span><b aria-hidden="true">☆</b></div>
+      <strong>{{ overview.delta_24h }}</strong>
+      <small>最终推荐项目的增长合计</small>
+    </article>
+    <article class="overview-metric">
+      <div><span>推荐结构</span><b aria-hidden="true">◷</b></div>
+      <strong>{{ overview.interest }} · {{ overview.rising }} · {{ overview.exploration }}</strong>
+      <small>兴趣 · 快速涨星 · 探索</small>
+    </article>
+    <article class="overview-metric">
+      <div><span>AI 中文增强</span><b aria-hidden="true">▤</b></div>
+      <strong>{{ overview.enhanced_percent }}</strong>
+      <small><em>{{ overview.enhanced }} / {{ overview.recommendations }}</em> 摘要已生成</small>
+    </article>
+  </section>
+
+  {% if report and report.recommendations %}
+    <section class="recommendation-toolbar" aria-label="推荐筛选">
+      <div><h2>推荐项目</h2><span id="visible-project-count">{{ report.recommendations|length }} 个结果</span></div>
+      <div class="project-filters" role="group" aria-label="按推荐类型筛选">
+        <button class="project-filter is-active" type="button" data-kind-filter="all">全部</button>
+        <button class="project-filter" type="button" data-kind-filter="interest">兴趣匹配</button>
+        <button class="project-filter" type="button" data-kind-filter="rising">快速涨星</button>
+        <button class="project-filter" type="button" data-kind-filter="exploration">探索</button>
+      </div>
+      <button class="sort-indicator" type="button" title="当前按综合推荐分排序" aria-label="当前按综合推荐分排序">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h12M8 12h8M8 17h4"/><path d="m3 6 2-2 2 2M5 4v15"/></svg>
+      </button>
+    </section>
+
+    <section class="project-workspace" aria-label="今日推荐工作台">
+      <div class="recommendation-list" id="today-object-list" aria-label="今日项目索引">
+        {% for item in report.recommendations %}
+          {% set estimated = item.growth.evidence.value == 'estimated' %}
+          {% set is_sample = item.repository.discovery_sources and item.repository.discovery_sources[0].startswith('fixture-') %}
+          {% set evidence_label = '样例' if is_sample else ('估算' if estimated else '实测') %}
+          <a
+            class="recommendation-card{% if selected and selected.repository.full_name == item.repository.full_name %} is-selected{% endif %}"
+            href="/?repo={{ item.repository.full_name|urlquote }}"
+            aria-pressed="{{ 'true' if selected and selected.repository.full_name == item.repository.full_name else 'false' }}"
+            data-select-row
+            data-project-kind="{{ item.kind.value }}"
+            hx-get="/partials/recommendation?repo={{ item.repository.full_name|urlquote }}"
+            hx-target="#recommendation-detail"
+            hx-swap="outerHTML"
+            hx-push-url="/?repo={{ item.repository.full_name|urlquote }}"
+          >
+            <span class="recommendation-rank">{{ '%02d'|format(loop.index) }}</span>
+            <span class="recommendation-main">
+              <span class="recommendation-head">
+                <strong>{{ item.repository.full_name }}</strong>
+                <i class="kind-chip is-{{ item.kind.value }}">{{ {'interest':'兴趣匹配','rising':'快速涨星','exploration':'探索'}[item.kind.value] }}</i>
+              </span>
+              <span class="recommendation-summary">{{ item.summary_zh or item.repository.description or '打开 README 查看项目详情。' }}</span>
+              <span class="recommendation-tags">
+                <i>{{ item.repository.language or '项目文档' }}</i>
+                {% if item.repository.topics %}<i>{{ item.repository.topics[0] }}</i>{% endif %}
+                <i>更新 {{ item.repository.pushed_at.strftime('%m/%d') }}</i>
+              </span>
+            </span>
+            <span class="recommendation-growth">
+              <strong>{{ item.growth.delta_24h|delta(estimated=estimated) }}</strong>
+              <small>/ 24h · {{ item.repository.stars|compact_number }}</small>
+              <i>{{ evidence_label }}</i>
+            </span>
+          </a>
+        {% endfor %}
+        <article class="filter-empty" id="project-filter-empty" hidden>
+          <strong>当前类型没有推荐项目</strong>
+          <span>选择“全部”查看今天完整的推荐清单。</span>
+        </article>
       </div>
 
-      {% if report and report.recommendations %}
-        <div class="object-list" id="today-object-list">
-          {% for item in report.recommendations %}
-            {% set estimated = item.growth.evidence.value == 'estimated' %}
-            {% set is_sample = item.repository.discovery_sources and item.repository.discovery_sources[0].startswith('fixture-') %}
-            {% set evidence_label = '样例' if is_sample else ('估算' if estimated else '实测') %}
-            <a
-              class="object-row"
-              href="/?repo={{ item.repository.full_name|urlquote }}"
-              aria-pressed="{{ 'true' if selected and selected.repository.full_name == item.repository.full_name else 'false' }}"
-              data-select-row
-              hx-get="/partials/recommendation?repo={{ item.repository.full_name|urlquote }}"
-              hx-target="#recommendation-detail"
-              hx-swap="outerHTML"
-              hx-push-url="/?repo={{ item.repository.full_name|urlquote }}"
-            >
-              <span class="object-meta"><strong>{{ {'interest':'兴趣匹配','rising':'快速涨星','exploration':'探索'}[item.kind.value] }}</strong><span>{{ '%02d'|format(loop.index) }}</span></span>
-              <span class="object-name">{{ item.repository.full_name }}</span>
-              <span class="object-signal"><span>24H{% if evidence_label != '实测' %} {{ evidence_label }}{% endif %}</span><b>{{ item.growth.delta_24h|delta(estimated=estimated) }}</b></span>
-            </a>
-          {% endfor %}
-        </div>
-        <div class="index-note">
-          <strong>今日结构</strong>
-          {{ mix }}<br>
-          {% if report.recommendations|length < 8 %}质量优先，仅展示通过门槛的项目{% else %}固定输入与反馈会产生固定排序{% endif %}
-        </div>
-      {% else %}
-        <div class="index-empty">首份日报生成后，项目索引会出现在这里。</div>
+      {% if selected %}
+        {% include "partials/recommendation_detail.html" %}
       {% endif %}
-    </aside>
-
-    {% if selected and report %}
-      {% include "partials/recommendation_detail.html" %}
-    {% else %}
-      <article class="detail-canvas empty-state">
-        <span class="state-code">NO SIGNALS YET</span>
-        <h2>还没有可阅读的日报</h2>
-        <p>先运行固定样例验证完整链路，或配置 GitHub 与 MiniMax 后执行今日任务。</p>
-        <code>uv run ai-repo-radar sample</code>
-      </article>
-    {% endif %}
-  </section>
+    </section>
+  {% else %}
+    <article class="workspace-empty">
+      <span class="empty-icon" aria-hidden="true">◎</span>
+      <span class="state-code">NO SIGNALS YET</span>
+      <h2>还没有可阅读的日报</h2>
+      <p>先运行固定样例验证完整链路，或配置 GitHub 与 MiniMax 后执行今日任务。</p>
+      <code>uv run ai-repo-radar sample</code>
+    </article>
+  {% endif %}
 {% endblock %}

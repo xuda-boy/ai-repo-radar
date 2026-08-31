@@ -1,45 +1,60 @@
-<article class="detail-canvas detail-swap" id="recommendation-detail">
-  <header class="detail-head">
-    <div>
+<article class="project-detail-card detail-swap" id="recommendation-detail">
+  <div class="project-detail-main">
+    <header class="detail-status-row">
       <span class="kind-label">{{ view.kind_english }} · {{ view.evidence_label }}</span>
-      <h2 class="repo-title">{{ recommendation.repository.full_name }}</h2>
-    </div>
-    <span class="health-label"><span aria-hidden="true"></span><b>{{ view.health }}</b></span>
-  </header>
+      <span class="health-label"><i aria-hidden="true"></i>{{ view.health }}</span>
+    </header>
 
-  {% if report.status.value == 'degraded' %}
-    <div class="degraded-banner" role="status">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 8 15H4L12 4Zm0 5v5m0 2.5v.5"/></svg>
-      <span>{{ report.degradation_message }} 规则排序、公开指标与英文描述仍然可用。</span>
+    <div class="project-title-row">
+      <span class="project-monogram" aria-hidden="true">{{ recommendation.repository.name[:2]|upper }}</span>
+      <div>
+        <h2>{{ recommendation.repository.name }}</h2>
+        <p>{{ recommendation.repository.full_name.split('/')[0] }} · {{ recommendation.repository.language or '项目文档' }}{% if recommendation.repository.topics %} · {{ recommendation.repository.topics[0] }}{% endif %}</p>
+      </div>
     </div>
-  {% endif %}
 
-  <section class="intro-section" aria-labelledby="project-intro-title">
-    <div class="intro-head">
-      <h3 id="project-intro-title">项目简介</h3>
-      <span>{{ 'AI 中文概览' if recommendation.summary_zh else 'GitHub 原始简介' }}</span>
-    </div>
-    <p class="summary-copy">{{ recommendation.summary_zh or recommendation.repository.description or 'GitHub 暂未提供项目简介，请打开 README 查看详情。' }}</p>
-    {% if recommendation.summary_zh and recommendation.repository.description %}
-      <div class="original-copy">
-        <span>GitHub 原始简介</span>
-        <p lang="en">{{ recommendation.repository.description }}</p>
+    {% if report.status.value == 'degraded' %}
+      <div class="degraded-banner" role="status">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 8 15H4L12 4Zm0 5v5m0 2.5v.5"/></svg>
+        <span>{{ report.degradation_message }} 规则排序、公开指标与英文描述仍然可用。</span>
       </div>
     {% endif %}
-  </section>
 
-  <div class="metric-band" aria-label="仓库关键指标">
-    <div class="metric"><span>STARS</span><strong>{{ view.stars }}</strong></div>
-    <div class="metric"><span>24 HOURS</span><strong class="positive">{{ view.delta_24h }}</strong></div>
-    <div class="metric"><span>7 DAYS</span><strong class="positive">{{ view.delta_7d }}</strong></div>
-    <div class="metric"><span>UPDATED</span><strong>{{ view.updated }}</strong></div>
-    <div class="metric"><span>SOURCE</span><strong>{{ view.evidence_label }}</strong></div>
+    <section class="intro-section" aria-labelledby="project-intro-title">
+      <div class="intro-head">
+        <h3 id="project-intro-title">项目简介</h3>
+        <span>{{ 'AI 中文概览' if recommendation.summary_zh else 'GitHub 原始简介' }}</span>
+      </div>
+      <p class="summary-copy">{{ recommendation.summary_zh or recommendation.repository.description or 'GitHub 暂未提供项目简介，请打开 README 查看详情。' }}</p>
+      {% if recommendation.summary_zh and recommendation.repository.description %}
+        <details class="original-copy">
+          <summary>GitHub 原始简介</summary>
+          <p lang="en">{{ recommendation.repository.description }}</p>
+        </details>
+      {% endif %}
+    </section>
+
+    <div class="detail-actions">
+      <a class="primary-action" href="{{ recommendation.repository.html_url }}" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></svg>
+        在 GitHub 查看
+      </a>
+      <a class="icon-action" href="#feedback-bar" aria-label="前往收藏反馈">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h11v15L12 16l-5.5 3.5v-15Z"/></svg>
+      </a>
+    </div>
+
+    <div class="detail-metrics" aria-label="仓库关键指标">
+      <div><span>Stars</span><strong>{{ view.stars }}</strong></div>
+      <div><span>24 hours</span><strong class="positive">{{ view.delta_24h }}</strong></div>
+      <div><span>Updated</span><strong>{{ view.updated }}</strong></div>
+    </div>
   </div>
 
   <section class="trend-section">
     <div class="section-head">
       <h3>七日 Star 信号</h3>
-      {% if view.chart.available %}<span>{{ '{:,}'.format(view.chart.start) }} → {{ '{:,}'.format(view.chart.end) }}</span>{% else %}<span>等待快照积累</span>{% endif %}
+      <span class="positive">{{ view.delta_7d }} / 7d</span>
     </div>
     {% if view.chart.available %}
       <svg class="trend-chart" viewBox="0 0 720 190" role="img" aria-labelledby="chart-title-{{ recommendation.repository.name }} chart-desc-{{ recommendation.repository.name }}" preserveAspectRatio="none">
@@ -52,17 +67,16 @@
           <circle class="chart-point" cx="{{ point.x }}" cy="{{ point.y }}" r="{{ 4 if point.last else 2.8 }}"><title>{{ point.date }} · {{ point.stars_label }} Stars</title></circle>
         {% endfor %}
         {% for point in view.chart.labels %}<text class="chart-label" x="{{ point.x }}" y="182" text-anchor="{{ 'start' if loop.first else ('end' if loop.last else 'middle') }}">{{ point.date }}</text>{% endfor %}
-        <text class="chart-label" x="44" y="12">{{ '{:,}'.format(view.chart.max) }}</text>
       </svg>
     {% else %}
-      <div class="chart-empty">首日先使用创建时间、当前 Star 与维护活跃度形成估算信号。</div>
+      <div class="chart-empty">等待更多每日快照后，将显示真实七日趋势。</div>
     {% endif %}
   </section>
 
   <div class="analysis-grid">
-    <section class="analysis-block">
+    <section class="analysis-block reason-block">
       <h3>为什么推荐</h3>
-      <p class="reason-copy">{{ recommendation.recommendation_reason }}</p>
+      <p>{{ recommendation.recommendation_reason }}</p>
     </section>
     <section class="analysis-block">
       <h3>快速开始</h3>

@@ -6,24 +6,24 @@
   hx-trigger="radar:syncUpdated from:body"
   hx-swap="outerHTML"
 >
-  <div class="ledger-summary" aria-label="反馈概览">
-    <article class="ledger-stat">
-      <span>全部反馈</span>
+  <div class="feedback-overview ledger-summary metric-overview" aria-label="反馈概览">
+    <article class="ledger-stat overview-metric">
+      <div><span>全部反馈</span><b aria-hidden="true">≡</b></div>
       <strong>{{ feedback_total }}</strong>
-      <small>原始操作</small>
+      <small>保留的原始操作</small>
     </article>
-    <article class="ledger-stat is-active">
-      <span>尚未撤回</span>
+    <article class="ledger-stat overview-metric is-active">
+      <div><span>尚未撤回</span><b aria-hidden="true">✓</b></div>
       <strong>{{ feedback_active }}</strong>
       <small>仍保留原反馈</small>
     </article>
-    <article class="ledger-stat is-revoked">
-      <span>撤回记录</span>
+    <article class="ledger-stat overview-metric is-revoked">
+      <div><span>撤回记录</span><b aria-hidden="true">↶</b></div>
       <strong>{{ feedback_revoked }}</strong>
       <small>含待次日生效</small>
     </article>
-    <article class="ledger-stat{% if feedback_pending %} is-pending{% endif %}">
-      <span>待同步事件</span>
+    <article class="ledger-stat overview-metric{% if feedback_pending %} is-pending{% endif %}">
+      <div><span>待同步事件</span><b aria-hidden="true">↗</b></div>
       <strong>{{ feedback_pending }}</strong>
       <small>含反馈与撤回</small>
     </article>
@@ -31,7 +31,7 @@
 
   {% if feedback_items %}
     <div class="ledger-table-shell">
-      <div class="ledger-table-heading">
+      <div class="ledger-table-heading collection-head">
         <div>
           <h3>操作明细</h3>
           <p>按提交时间倒序排列；“撤回”只抵消偏好影响，不删除审计记录。</p>

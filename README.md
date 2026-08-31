@@ -1,12 +1,14 @@
 # AI Repo Radar
 
-每天从 GitHub 官方 API 发现值得关注的 AI 开源项目，用确定性规则完成过滤与排序，再由 MiniMax-M3 为最终项目补充中文摘要。结果保存在你的私有数据仓，并通过只监听 `127.0.0.1` 的 Signal Ledger 工作台查看和反馈。
+每天从 GitHub 官方 API 发现值得关注的 AI 开源项目，用确定性规则完成过滤与排序，再由 MiniMax-M3 为最终项目补充中文摘要。结果保存在你的私有数据仓，并通过只监听 `127.0.0.1` 的 Modern Discovery 工作台查看和反馈。
 
 English: a local-first, explainable AI GitHub repository radar with deterministic ranking, optional MiniMax-M3 content enrichment, an append-only private data repository, and a FastAPI + Jinja + HTMX dashboard.
 
 > v0.2.2 已完成反馈撤回、Dashboard 自动拉取、定时任务幂等补跑，以及 MiniMax 异常响应的自动重试与部分结果保留。
 
-![AI Repo Radar Signal Ledger Dashboard](docs/assets/dashboard.png)
+![AI Repo Radar Modern Discovery Dashboard](docs/assets/dashboard.png)
+
+界面采用概览、项目清单与粘性详情工作区，桌面和手机均可按兴趣匹配、快速涨星与探索类型浏览；设计约束见 [设计系统](docs/DESIGN_SYSTEM.md)。
 
 ## 它解决什么问题
 

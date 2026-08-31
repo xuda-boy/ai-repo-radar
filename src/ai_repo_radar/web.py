@@ -121,6 +121,38 @@ def _report_mix(report: DailyReport) -> str:
     )
 
 
+def _today_overview(report: DailyReport | None) -> dict[str, object]:
+    if report is None:
+        return {
+            "recommendations": 0,
+            "candidates": 0,
+            "delta_24h": "—",
+            "interest": 0,
+            "rising": 0,
+            "exploration": 0,
+            "enhanced": 0,
+            "enhanced_percent": "0%",
+        }
+    counts = Counter(item.kind for item in report.recommendations)
+    available_deltas = [
+        item.growth.delta_24h
+        for item in report.recommendations
+        if item.growth.delta_24h is not None
+    ]
+    enhanced = sum(bool(item.summary_zh) for item in report.recommendations)
+    total = len(report.recommendations)
+    return {
+        "recommendations": total,
+        "candidates": report.stats.candidate_count,
+        "delta_24h": _format_delta(sum(available_deltas)) if available_deltas else "快照不足",
+        "interest": counts[RecommendationKind.INTEREST],
+        "rising": counts[RecommendationKind.RISING],
+        "exploration": counts[RecommendationKind.EXPLORATION],
+        "enhanced": enhanced,
+        "enhanced_percent": f"{round(enhanced / total * 100)}%" if total else "0%",
+    }
+
+
 def _chart_geometry(recommendation: Recommendation) -> dict[str, object]:
     raw_points = recommendation.growth.history
     if not raw_points:
@@ -693,6 +725,7 @@ def create_app(
                 if selected and report
                 else None,
                 "mix": _report_mix(report) if report else "尚无日报",
+                "overview": _today_overview(report),
             }
         )
         if selected and report:
@@ -904,6 +937,12 @@ def create_app(
                 "reports": reports,
                 "selected_report": selected,
                 "selected_mix": _report_mix(selected) if selected else "尚无日报",
+                "history_overview": {
+                    "days": len(reports),
+                    "recommendations": sum(item.recommendation_count for item in reports),
+                    "saved": sum(item.saved_count for item in reports),
+                    "degraded": sum(item.status == "degraded" for item in reports),
+                },
             }
         )
         return templates.TemplateResponse(request=request, name="history.html", context=context)
@@ -936,7 +975,19 @@ def create_app(
             title="已收藏",
             subtitle="把一次推荐沉淀成可继续研究的项目清单。",
         )
-        context.update({"saved_items": items, "selected_saved": selected})
+        context.update(
+            {
+                "saved_items": items,
+                "selected_saved": selected,
+                "saved_overview": {
+                    "total": len(items),
+                    "with_context": sum(item.recommendation is not None for item in items),
+                    "report_days": len(
+                        {item.report_date for item in items if item.report_date is not None}
+                    ),
+                },
+            }
+        )
         return templates.TemplateResponse(request=request, name="saved.html", context=context)
 
     @app.get("/partials/saved", response_class=HTMLResponse)

@@ -67,6 +67,47 @@ def test_dashboard_reads_today_history_and_partial_views(
     assert "A high-throughput, memory-efficient inference" in partial.text
 
 
+def test_dashboard_uses_confirmed_modern_discovery_shell_on_all_pages(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+
+    pages = {
+        "today": client.get("/"),
+        "history": client.get("/history"),
+        "saved": client.get("/saved"),
+        "feedback": client.get("/feedback"),
+    }
+
+    for page, response in pages.items():
+        assert response.status_code == 200
+        assert 'class="app-sidebar"' in response.text
+        assert 'class="mobile-nav"' in response.text
+        assert f'data-page="{page}"' in response.text
+
+    today = pages["today"].text
+    assert 'class="daily-overview metric-overview"' in today
+    assert "24h 新增 Star" in today
+    assert "+1,098" in today
+    assert "推荐结构" in today
+    assert "AI 中文增强" in today
+    assert "100%" in today
+    assert 'class="recommendation-card' in today
+    assert 'class="project-detail-card' in today
+    assert 'id="visible-project-count"' in today
+    assert 'data-kind-filter="rising"' in today
+    assert 'data-project-kind="exploration"' in today
+    assert 'id="mobile-status"' in today
+    assert 'aria-controls="status-popover"' in today
+
+    assert 'class="history-overview metric-overview"' in pages["history"].text
+    assert 'class="saved-overview metric-overview"' in pages["saved"].text
+    assert 'class="feedback-overview ledger-summary metric-overview"' in pages["feedback"].text
+
+
 def test_dashboard_explains_fixture_freshness_and_disables_auto_update(
     sample_fixture,
     data_store,

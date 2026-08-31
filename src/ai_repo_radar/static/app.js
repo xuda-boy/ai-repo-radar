@@ -1,19 +1,29 @@
 (() => {
   const statusButton = document.querySelector("#system-status");
   const statusPopover = document.querySelector("#status-popover");
+  const mobileStatusButton = document.querySelector("#mobile-status");
   const liveRegion = document.querySelector("#live-region");
   const body = document.body;
 
   if (statusButton && statusPopover) {
-    statusButton.addEventListener("click", () => {
+    const toggleStatus = () => {
       const expanded = statusButton.getAttribute("aria-expanded") === "true";
       statusButton.setAttribute("aria-expanded", expanded ? "false" : "true");
+      mobileStatusButton?.setAttribute("aria-expanded", expanded ? "false" : "true");
       statusPopover.hidden = expanded;
-    });
+    };
+
+    statusButton.addEventListener("click", toggleStatus);
+    mobileStatusButton?.addEventListener("click", toggleStatus);
 
     document.addEventListener("click", (event) => {
-      if (statusButton.contains(event.target) || statusPopover.contains(event.target)) return;
+      if (
+        statusButton.contains(event.target)
+        || mobileStatusButton?.contains(event.target)
+        || statusPopover.contains(event.target)
+      ) return;
       statusButton.setAttribute("aria-expanded", "false");
+      mobileStatusButton?.setAttribute("aria-expanded", "false");
       statusPopover.hidden = true;
     });
   }
@@ -23,6 +33,7 @@
     if (row) {
       row.parentElement.querySelectorAll("[data-select-row]").forEach((peer) => {
         peer.setAttribute("aria-pressed", peer === row ? "true" : "false");
+        peer.classList.toggle("is-selected", peer === row);
       });
     }
     const button = event.detail.elt.querySelector?.("button[type='submit']");
@@ -53,12 +64,17 @@
       statusButton.classList.toggle("has-pending", pending > 0 || !configured);
       statusButton.classList.remove("has-error");
     }
+    if (mobileStatusButton && freshnessTone === "success") {
+      mobileStatusButton.classList.toggle("has-pending", pending > 0 || !configured);
+      mobileStatusButton.classList.remove("has-error");
+    }
   };
 
   const updateDataIndicators = (detail) => {
     const freshnessLabel = document.querySelector("#data-freshness-label");
     const freshnessDetail = document.querySelector("#data-freshness-detail");
     const lastChecked = document.querySelector("#data-last-checked");
+    const syncLabel = document.querySelector("#sync-label");
     const tone = detail.tone || "warning";
     const systemTone = detail.systemTone || tone;
     if (freshnessLabel) {
@@ -71,6 +87,10 @@
       statusButton.dataset.freshnessTone = tone;
       statusButton.classList.toggle("has-pending", ["warning", "sample"].includes(systemTone));
       statusButton.classList.toggle("has-error", systemTone === "error");
+    }
+    if (mobileStatusButton) {
+      mobileStatusButton.classList.toggle("has-pending", ["warning", "sample"].includes(systemTone));
+      mobileStatusButton.classList.toggle("has-error", systemTone === "error");
     }
     if (syncLabel && detail.systemLabel) syncLabel.textContent = detail.systemLabel;
   };
@@ -141,4 +161,35 @@
     window.setTimeout(pollDataStatus, 5000);
     window.setInterval(pollDataStatus, 60000);
   }
+
+  const projectFilters = [...document.querySelectorAll("[data-kind-filter]")];
+  const projectCards = [...document.querySelectorAll("[data-project-kind]")];
+  const visibleProjectCount = document.querySelector("#visible-project-count");
+  const projectFilterEmpty = document.querySelector("#project-filter-empty");
+
+  const applyProjectFilter = (kind) => {
+    let visible = 0;
+    projectCards.forEach((card) => {
+      const matches = kind === "all" || card.dataset.projectKind === kind;
+      card.hidden = !matches;
+      if (matches) visible += 1;
+    });
+    projectFilters.forEach((filter) => {
+      const active = filter.dataset.kindFilter === kind;
+      filter.classList.toggle("is-active", active);
+      filter.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (visibleProjectCount) visibleProjectCount.textContent = `${visible} 个结果`;
+    if (projectFilterEmpty) projectFilterEmpty.hidden = visible !== 0;
+
+    const selected = projectCards.find((card) => card.classList.contains("is-selected"));
+    if (selected?.hidden) {
+      projectCards.find((card) => !card.hidden)?.click();
+    }
+  };
+
+  projectFilters.forEach((filter) => {
+    filter.setAttribute("aria-pressed", filter.classList.contains("is-active") ? "true" : "false");
+    filter.addEventListener("click", () => applyProjectFilter(filter.dataset.kindFilter || "all"));
+  });
 })();

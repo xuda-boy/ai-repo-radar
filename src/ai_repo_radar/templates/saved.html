@@ -1,41 +1,69 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="page-grid" aria-label="收藏研究清单">
-    <aside class="signal-index" aria-label="收藏项目索引">
-      <div class="index-head">
-        <span class="index-kicker">SAVED / RESEARCH</span>
-        <span class="index-count">{{ saved_items|length }} <small>项目</small></span>
-      </div>
-      {% if saved_items %}
-        <div class="object-list">
-          {% for saved in saved_items %}
+  <header class="page-hero compact-hero">
+    <div>
+      <span class="page-eyebrow">Library · saved projects</span>
+      <h1>把值得研究的项目，留在自己的清单里</h1>
+      <p>{{ page_subtitle }}</p>
+    </div>
+  </header>
+
+  <section class="saved-overview metric-overview" aria-label="收藏数据概览">
+    <article class="overview-metric"><div><span>收藏项目</span><b aria-hidden="true">☆</b></div><strong>{{ saved_overview.total }}</strong><small>来自每日推荐的研究线索</small></article>
+    <article class="overview-metric"><div><span>完整上下文</span><b aria-hidden="true">◎</b></div><strong>{{ saved_overview.with_context }}</strong><small>仍可回看摘要与推荐理由</small></article>
+    <article class="overview-metric"><div><span>涵盖日报</span><b aria-hidden="true">▤</b></div><strong>{{ saved_overview.report_days }}</strong><small>跨天沉淀的项目观察</small></article>
+    <article class="overview-metric"><div><span>待同步反馈</span><b aria-hidden="true">↗</b></div><strong>{{ pending_sync }}</strong><small>{{ '保存在本地队列，等待同步' if pending_sync else '收藏反馈均已安全同步' }}</small></article>
+  </section>
+
+  {% if saved_items %}
+    <section class="collection-workspace" aria-label="收藏项目工作台">
+      <aside class="collection-list" aria-label="收藏项目索引">
+        <header class="collection-head"><div><h2>研究清单</h2><p>最近收藏优先</p></div><span>{{ saved_items|length }} 个</span></header>
+        <div class="collection-items">
+          {% for item in saved_items %}
             <a
-              class="object-row"
-              href="/saved?repo={{ saved.repo_full_name|urlquote }}"
-              aria-pressed="{{ 'true' if selected_saved and selected_saved.repo_full_name == saved.repo_full_name else 'false' }}"
+              class="collection-card saved-card{% if selected_saved and selected_saved.repo_full_name == item.repo_full_name %} is-selected{% endif %}"
+              href="/saved?repo={{ item.repo_full_name|urlquote }}"
+              aria-pressed="{{ 'true' if selected_saved and selected_saved.repo_full_name == item.repo_full_name else 'false' }}"
               data-select-row
-              hx-get="/partials/saved?repo={{ saved.repo_full_name|urlquote }}"
+              hx-get="/partials/saved?repo={{ item.repo_full_name|urlquote }}"
               hx-target="#saved-detail"
               hx-swap="outerHTML"
-              hx-push-url="/saved?repo={{ saved.repo_full_name|urlquote }}"
+              hx-push-url="/saved?repo={{ item.repo_full_name|urlquote }}"
             >
-              <span class="object-meta"><strong>{{ saved.recommendation.repository.topics[0] if saved.recommendation and saved.recommendation.repository.topics else 'AI' }}</strong><span>{{ saved.saved_at[5:10].replace('-', '/') }}</span></span>
-              <span class="object-name">{{ saved.repo_full_name }}</span>
-              <span class="object-signal"><span>收藏时 7D</span><b>{{ saved.recommendation.growth.delta_7d|delta if saved.recommendation else '—' }}</b></span>
+              <span class="saved-monogram" aria-hidden="true">{{ item.repo_full_name.split('/')[-1][:1]|upper }}</span>
+              <span class="collection-main">
+                <strong>{{ item.repo_full_name }}</strong>
+                {% if item.recommendation %}
+                  <small>{{ item.recommendation.summary_zh or item.recommendation.repository.description or '打开 GitHub 查看项目详情。' }}</small>
+                  <span class="collection-tags">
+                    <i>{{ item.recommendation.repository.language or '项目文档' }}</i>
+                    {% if item.recommendation.repository.topics %}<i>{{ item.recommendation.repository.topics[0] }}</i>{% endif %}
+                  </span>
+                {% else %}
+                  <small>历史收藏 · 当前缓存中没有对应日报上下文</small>
+                {% endif %}
+              </span>
+              <span class="collection-count">
+                {% if item.recommendation %}<strong>{{ item.recommendation.growth.delta_7d|delta }}</strong><small>7 天 Star</small>{% else %}<strong>—</strong><small>历史记录</small>{% endif %}
+              </span>
             </a>
           {% endfor %}
         </div>
-        <div class="index-note"><strong>研究清单</strong>收藏不会绕过历史去重<br>兴趣反馈仍从次日生效</div>
-      {% else %}
-        <div class="index-empty">在今日推荐中点击“收藏”，项目会进入这里。</div>
-      {% endif %}
-    </aside>
+      </aside>
 
-    {% if selected_saved %}
-      {% include "partials/saved_detail.html" %}
-    {% else %}
-      <article class="detail-canvas empty-state"><span class="state-code">EMPTY RESEARCH LIST</span><h2>还没有收藏项目</h2><p>收藏是弱正反馈，也会把当时的推荐原因与增长证据保留下来。</p></article>
-    {% endif %}
-  </section>
+      {% if selected_saved %}
+        {% include "partials/saved_detail.html" %}
+      {% endif %}
+    </section>
+  {% else %}
+    <article class="workspace-empty">
+      <span class="empty-icon" aria-hidden="true">☆</span>
+      <span class="state-code">EMPTY LIBRARY</span>
+      <h2>还没有收藏项目</h2>
+      <p>在今日推荐里点击“收藏”，项目摘要、推荐理由与增长信号会一起保留在这里。</p>
+      <a class="primary-link" href="/">浏览今日推荐</a>
+    </article>
+  {% endif %}
 {% endblock %}

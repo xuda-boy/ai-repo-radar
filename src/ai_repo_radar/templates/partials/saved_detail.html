@@ -1,27 +1,35 @@
-<article class="detail-canvas detail-swap" id="saved-detail">
+<article class="saved-detail-card detail-swap" id="saved-detail">
   {% if selected_saved.recommendation %}
     {% set item = selected_saved.recommendation %}
-    <div class="saved-lead">
-      <span class="kind-label">Saved · {{ item.repository.topics[0] if item.repository.topics else 'AI' }}</span>
-      <h2>{{ item.repository.full_name }}</h2>
-      <p>{{ item.summary_zh or item.repository.description }}</p>
-      <div class="saved-meta">
-        <span>收藏于 {{ selected_saved.saved_at[:10] }}</span>
-        <span>{{ item.repository.stars|compact_number }} Stars</span>
-        <span>收藏时 7D {{ item.growth.delta_7d|delta }}</span>
-      </div>
-    </div>
-    <section class="saved-reason">
+    <header class="detail-heading saved-detail-heading">
+      <span class="project-monogram is-saved" aria-hidden="true">{{ item.repository.full_name.split('/')[-1][:1]|upper }}</span>
       <div>
-        <h3>保留原因</h3>
-        <p>{{ item.recommendation_reason }}</p>
+        <span class="detail-kicker">Saved project · {{ item.repository.topics[0] if item.repository.topics else 'AI' }}</span>
+        <h2>{{ item.repository.full_name }}</h2>
+        <p>收藏于 {{ selected_saved.saved_at[:10] }}</p>
       </div>
-      <a class="external-link" href="{{ item.repository.html_url }}" target="_blank" rel="noopener noreferrer">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M11 13l8-8M19 13v6H5V5h6"/></svg>
+      <a class="github-button" href="{{ item.repository.html_url }}" target="_blank" rel="noopener noreferrer">
         查看 GitHub
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
       </a>
+    </header>
+
+    <section class="detail-summary" aria-labelledby="saved-summary-title">
+      <div class="section-heading"><h3 id="saved-summary-title">项目简介</h3><span>收藏时上下文</span></div>
+      <p>{{ item.summary_zh or item.repository.description or '该项目暂时没有可用简介。' }}</p>
+    </section>
+
+    <section class="detail-metrics" aria-label="收藏项目指标">
+      <article><span>Stars</span><strong>{{ item.repository.stars|compact_number }}</strong></article>
+      <article><span>收藏时 7D</span><strong>{{ item.growth.delta_7d|delta }}</strong></article>
+      <article><span>主要语言</span><strong>{{ item.repository.language or '—' }}</strong></article>
+    </section>
+
+    <section class="saved-reason insight-card">
+      <div class="insight-icon" aria-hidden="true">✦</div>
+      <div><span>为什么值得保留</span><h3>推荐理由</h3><p>{{ item.recommendation_reason }}</p></div>
     </section>
   {% else %}
-    <div class="empty-state"><span class="state-code">LEGACY SAVE</span><h2>{{ selected_saved.repo_full_name }}</h2><p>该收藏事件存在，但对应日报内容未在当前缓存中找到。</p></div>
+    <div class="workspace-empty embedded-empty"><span class="state-code">LEGACY SAVE</span><h2>{{ selected_saved.repo_full_name }}</h2><p>该收藏事件存在，但对应日报内容未在当前缓存中找到。</p><a class="primary-link" href="https://github.com/{{ selected_saved.repo_full_name }}" target="_blank" rel="noopener noreferrer">查看 GitHub</a></div>
   {% endif %}
 </article>

@@ -1,17 +1,29 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="page-grid" aria-label="历史日报">
-    <aside class="signal-index" aria-label="历史日期索引">
-      <div class="index-head">
-        <span class="index-kicker">REPORT / LEDGER</span>
-        <span class="index-count">{{ reports|length }} <small>天</small></span>
-      </div>
-      {% if reports %}
-        <div class="object-list">
+  <header class="page-hero compact-hero">
+    <div>
+      <span class="page-eyebrow">Reports · audit history</span>
+      <h1>每一天的推荐，都能回看和解释</h1>
+      <p>{{ page_subtitle }}</p>
+    </div>
+  </header>
+
+  <section class="history-overview metric-overview" aria-label="历史数据概览">
+    <article class="overview-metric"><div><span>累计日报</span><b aria-hidden="true">▤</b></div><strong>{{ history_overview.days }}</strong><small>每日自动任务的可审计记录</small></article>
+    <article class="overview-metric"><div><span>累计推荐</span><b aria-hidden="true">◎</b></div><strong>{{ history_overview.recommendations }}</strong><small>通过质量门槛的项目</small></article>
+    <article class="overview-metric"><div><span>收藏次数</span><b aria-hidden="true">☆</b></div><strong>{{ history_overview.saved }}</strong><small>从日报沉淀到研究清单</small></article>
+    <article class="overview-metric"><div><span>模型降级</span><b aria-hidden="true">!</b></div><strong>{{ history_overview.degraded }}</strong><small>规则结果始终保留可用</small></article>
+  </section>
+
+  {% if reports %}
+    <section class="collection-workspace" aria-label="历史日报">
+      <aside class="collection-list" aria-label="历史日期索引">
+        <header class="collection-head"><div><h2>日报时间线</h2><p>按日期倒序排列</p></div><span>{{ reports|length }} 天</span></header>
+        <div class="collection-items">
           {% for item in reports %}
             <a
-              class="object-row"
+              class="collection-card{% if selected_report and selected_report.report_date == item.report_date %} is-selected{% endif %}"
               href="/history?date_value={{ item.report_date.isoformat() }}"
               aria-pressed="{{ 'true' if selected_report and selected_report.report_date == item.report_date else 'false' }}"
               data-select-row
@@ -20,26 +32,19 @@
               hx-swap="outerHTML"
               hx-push-url="/history?date_value={{ item.report_date.isoformat() }}"
             >
-              <span class="object-meta"><strong>{{ '模型降级' if item.status == 'degraded' else '正常' }}</strong><span>{{ item.report_date.strftime('%m/%d') }}</span></span>
-              <span class="object-name">{{ '今日推荐' if loop.first else '历史日报' }}</span>
-              <span class="object-signal"><span>推荐 / 收藏</span><b>{{ item.recommendation_count }} / {{ item.saved_count }}</b></span>
+              <span class="collection-date"><strong>{{ item.report_date.strftime('%m/%d') }}</strong><small>{{ item.report_date.strftime('%Y') }}</small></span>
+              <span class="collection-main"><strong>{{ '今日推荐' if loop.first else '历史日报' }}</strong><small>{{ '模型降级' if item.status == 'degraded' else '正常运行' }} · {{ '中文增强' if item.model_status == 'enhanced' else '规则结果' }}</small></span>
+              <span class="collection-count"><strong>{{ item.recommendation_count }}</strong><small>推荐 · {{ item.saved_count }} 收藏</small></span>
             </a>
           {% endfor %}
         </div>
-        <div class="index-note">
-          <strong>可审计历史</strong>
-          {{ reports|sum(attribute='recommendation_count') }} 条推荐 · {{ reports|sum(attribute='saved_count') }} 次收藏<br>
-          自动运行与模型降级状态均保留
-        </div>
-      {% else %}
-        <div class="index-empty">尚无历史日报。</div>
-      {% endif %}
-    </aside>
+      </aside>
 
-    {% if selected_report %}
-      {% include "partials/history_detail.html" %}
-    {% else %}
-      <article class="detail-canvas empty-state"><span class="state-code">EMPTY LEDGER</span><h2>历史会从第一份日报开始累积</h2><p>SQLite 只是视图，删除后仍可从追加式 JSON 完整重建。</p></article>
-    {% endif %}
-  </section>
+      {% if selected_report %}
+        {% include "partials/history_detail.html" %}
+      {% endif %}
+    </section>
+  {% else %}
+    <article class="workspace-empty"><span class="empty-icon" aria-hidden="true">▤</span><span class="state-code">EMPTY LEDGER</span><h2>历史会从第一份日报开始累积</h2><p>SQLite 只是视图，删除后仍可从追加式 JSON 完整重建。</p></article>
+  {% endif %}
 {% endblock %}
