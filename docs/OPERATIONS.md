@@ -2,7 +2,7 @@
 
 ## GitHub Actions 首跑
 
-1. 公开仓 CI 全绿后创建 release tag `v0.2.1`。
+1. 公开仓 CI 全绿后创建新的不可变 release tag。
 2. 私有数据仓保持 `main` 默认分支，并确认 `.ai-repo-radar-private` 已提交。
 3. 修改私有仓 workflow 的 `your-github-owner`。
 4. 新增私有 Actions Secret `MINIMAX_API_KEY`；不需要自建 `GITHUB_TOKEN`。
@@ -16,6 +16,8 @@
 ## MiniMax 降级
 
 以下问题会保存降级日报并保持任务成功：缺 Key、401/403、429、5xx、超时、网络失败、内容安全拒绝和无效 JSON。页面显示“AI 中文摘要暂不可用”，但规则排序、公开描述和增长证据仍存在。
+
+无效 JSON、输出截断、字段缺失、英文摘要或项目未补齐会自动重试；重试时降低随机度并逐步缩小批次，只请求仍缺失的项目。已通过中文和字段校验的结果会被保留。Actions 日志只显示安全诊断信息（尝试次数、错误代码、完成原因、请求数和通过数），不会保存 MiniMax 原始回复或 Secret。
 
 修复额度或 Secret 后，如当天只有降级日报，可再次手动运行。事实层允许正常结果替换当日降级结果。
 

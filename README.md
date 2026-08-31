@@ -4,7 +4,7 @@
 
 English: a local-first, explainable AI GitHub repository radar with deterministic ranking, optional MiniMax-M3 content enrichment, an append-only private data repository, and a FastAPI + Jinja + HTMX dashboard.
 
-> v0.2.1 已完成反馈撤回、Dashboard 自动拉取、MiniMax 真实增强、定时任务幂等补跑及两仓版本兼容。
+> v0.2.2 已完成反馈撤回、Dashboard 自动拉取、定时任务幂等补跑，以及 MiniMax 异常响应的自动重试与部分结果保留。
 
 ![AI Repo Radar Signal Ledger Dashboard](docs/assets/dashboard.png)
 
@@ -59,7 +59,7 @@ flowchart LR
 | `ai-repo-radar` | Public | Python 代码、样例、测试、可复用 workflow、文档 |
 | `ai-repo-radar-data` | Private | 日报、快照、反馈、兴趣画像、个人配置与 Actions Secrets |
 
-私有仓调用公开仓的 `radar-daily.yml@v0.2.1`，默认 `GITHUB_TOKEN` 只写调用方私有仓，不需要跨仓高权限 PAT。完整设计见 [架构说明](docs/ARCHITECTURE.md)。
+私有仓调用公开仓固定版本的 `radar-daily.yml`，默认 `GITHUB_TOKEN` 只写调用方私有仓，不需要跨仓高权限 PAT。完整设计见 [架构说明](docs/ARCHITECTURE.md)。
 
 ## 运行真实每日任务
 
@@ -76,7 +76,7 @@ uv run ai-repo-radar daily `
   --config D:\Github\ai-repo-radar-data\config.toml
 ```
 
-MiniMax 缺 Key、超时、限额或响应异常时，命令仍保存规则排序并把日报标成降级；GitHub 数据失败或事实写入失败则明确失败，不会用不完整日报覆盖有效结果。
+MiniMax 缺 Key、超时、限额或响应异常时，命令仍保存规则排序并把日报标成降级；结构异常会自动降低随机度、缩小批次并只重试缺失项目，已经合格的中文内容不会丢失。日志只记录安全错误代码、完成原因与数量，不保存模型原文或 Secret。GitHub 数据失败或事实写入失败则明确失败，不会用不完整日报覆盖有效结果。
 
 ## 私有数据仓与定时任务
 
@@ -85,7 +85,7 @@ MiniMax 缺 Key、超时、限额或响应异常时，命令仍保存规则排�
 1. 将它创建为 GitHub **Private** 仓库。
 2. 把 `.github/workflows/daily.yml` 中两处 `your-github-owner` 改成真实 owner。
 3. 在私有仓 Actions Secrets 新增 `MINIMAX_API_KEY`。
-4. 公开代码仓发布不可变 tag `v0.2.1`。
+4. 公开代码仓发布不可变版本 tag，并让私有 workflow 固定该版本。
 5. 手动运行一次，再启用北京时间 08:17 起的多时段幂等补跑。
 
 私有仓 workflow 自动使用调用仓的 `github.token` 读取 GitHub API，并只提交 `data/`。详见 [运维手册](docs/OPERATIONS.md)。

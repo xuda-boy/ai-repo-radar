@@ -139,41 +139,31 @@ def run_pipeline(
     status = ReportStatus.NORMAL
     if enhancer is not None and recommendations:
         enhancement = enhancer.enhance(recommendations, readme_map)
-        if enhancement.error_category:
+        by_name = {item.full_name: item for item in enhancement.enhancements}
+        recommendations = [
+            recommendation.model_copy(
+                update={
+                    "summary_zh": by_name[recommendation.repository.full_name].summary_zh,
+                    "quick_start": by_name[recommendation.repository.full_name].quick_start,
+                    "model_status": ModelStatus.ENHANCED,
+                }
+            )
+            if recommendation.repository.full_name in by_name
+            else recommendation.model_copy(update={"model_status": ModelStatus.DEGRADED})
+            for recommendation in recommendations
+        ]
+        missing = [
+            item.repository.full_name
+            for item in recommendations
+            if item.model_status == ModelStatus.DEGRADED
+        ]
+        if enhancement.error_category or missing:
             model_status = ModelStatus.DEGRADED
-            model_error_category = enhancement.error_category
-            degradation_message = enhancement.message or "AI 中文摘要暂不可用。"
             status = ReportStatus.DEGRADED
-            recommendations = [
-                recommendation.model_copy(update={"model_status": ModelStatus.DEGRADED})
-                for recommendation in recommendations
-            ]
+            model_error_category = enhancement.error_category or "partial_response"
+            degradation_message = enhancement.message or "部分项目的 AI 中文摘要暂不可用。"
         else:
-            by_name = {item.full_name: item for item in enhancement.enhancements}
-            recommendations = [
-                recommendation.model_copy(
-                    update={
-                        "summary_zh": by_name[recommendation.repository.full_name].summary_zh,
-                        "quick_start": by_name[recommendation.repository.full_name].quick_start,
-                        "model_status": ModelStatus.ENHANCED,
-                    }
-                )
-                if recommendation.repository.full_name in by_name
-                else recommendation.model_copy(update={"model_status": ModelStatus.DEGRADED})
-                for recommendation in recommendations
-            ]
-            missing = [
-                item.repository.full_name
-                for item in recommendations
-                if item.model_status == ModelStatus.DEGRADED
-            ]
-            if missing:
-                model_status = ModelStatus.DEGRADED
-                status = ReportStatus.DEGRADED
-                model_error_category = "partial_response"
-                degradation_message = "部分项目的 AI 中文摘要暂不可用。"
-            else:
-                model_status = ModelStatus.ENHANCED
+            model_status = ModelStatus.ENHANCED
 
     report = DailyReport(
         report_date=report_date,

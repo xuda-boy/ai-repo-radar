@@ -10,7 +10,7 @@ on:
       code_ref:
         description: Immutable public release tag.
         required: false
-        default: v0.2.1
+        default: v0.2.2
         type: string
       force:
         description: Replace today's normal report after explicit manual review.

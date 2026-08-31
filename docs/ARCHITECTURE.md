@@ -11,7 +11,7 @@
 3. `snapshots.py` 从每日 Star 快照计算 24 小时、7 天、相对增长、低基数保护和加速信号；历史不足时明确标为估算。
 4. `scoring.py` 使用纯函数生成质量、兴趣、增长、健康和新颖性分数。模型不参与名次。
 5. `pipeline.py` 根据冷启动或 5/2/1 配额选择最多 8 项。
-6. `MiniMaxClient` 只把最终公开项目的名称、描述、语言、topics 和 README 片段发送给 MiniMax-M3，解析中文摘要与快速开始。
+6. `MiniMaxClient` 只把最终公开项目的名称、描述、语言、topics 和 README 片段发送给 MiniMax-M3；它逐项校验中文摘要与快速开始，结构异常时缩小批次重试并保留已通过项目。
 7. `JsonDataStore` 原子写日报、画像与元数据，并追加 Star 快照和 UUID 反馈事件。
 8. `cache.py` 可从 JSON 全量重建 SQLite，Dashboard 只读该派生视图。
 
