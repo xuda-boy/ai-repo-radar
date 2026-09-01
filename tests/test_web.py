@@ -392,6 +392,84 @@ def test_feedback_is_saved_locally_and_immediately_visible_in_saved_page(
     assert "查看 GitHub" in saved.text
 
 
+def test_repeating_selected_feedback_cancels_without_duplicate_event(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    payload = {
+        "csrf_token": client.app.state.csrf_token,
+        "repo_full_name": "langchain-ai/langgraph",
+        "report_date": sample_fixture.report_date.isoformat(),
+        "action": "save",
+    }
+    headers = {"HX-Request": "true", "Origin": "http://127.0.0.1:8765"}
+
+    first = client.post("/feedback", data=payload, headers=headers)
+    second = client.post("/feedback", data=payload, headers=headers)
+
+    events = data_store.load_feedback_events()
+    originals = [event for event in events if event.action != FeedbackAction.REVOKE]
+    retractions = [event for event in events if event.action == FeedbackAction.REVOKE]
+    trigger = json.loads(second.headers["HX-Trigger"])["radar:feedbackRevoked"]
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(originals) == 1
+    assert len(retractions) == 1
+    assert retractions[0].reverts_event_id == originals[0].event_id
+    assert client.app.state.cache.feedback_for_report(sample_fixture.report_date) == {}
+    assert 'aria-pressed="true"' not in second.text
+    assert "反馈已取消" in trigger["message"]
+    assert "还没有收藏项目" in client.get("/saved").text
+
+
+def test_selecting_different_feedback_replaces_previous_active_choice(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    token = client.app.state.csrf_token
+    headers = {"HX-Request": "true", "Origin": "http://127.0.0.1:8765"}
+    base_payload = {
+        "csrf_token": token,
+        "repo_full_name": "langchain-ai/langgraph",
+        "report_date": sample_fixture.report_date.isoformat(),
+    }
+
+    client.post(
+        "/feedback",
+        data={**base_payload, "action": "more_like"},
+        headers=headers,
+    )
+    response = client.post(
+        "/feedback",
+        data={**base_payload, "action": "irrelevant"},
+        headers=headers,
+    )
+
+    events = data_store.load_feedback_events()
+    originals = [event for event in events if event.action != FeedbackAction.REVOKE]
+    retractions = [event for event in events if event.action == FeedbackAction.REVOKE]
+    active = client.app.state.cache.feedback_for_report(sample_fixture.report_date)
+    trigger = json.loads(response.headers["HX-Trigger"])["radar:feedbackSaved"]
+
+    assert response.status_code == 200
+    assert [event.action for event in originals] == [
+        FeedbackAction.MORE_LIKE,
+        FeedbackAction.IRRELEVANT,
+    ]
+    assert len(retractions) == 1
+    assert retractions[0].reverts_event_id == originals[0].event_id
+    assert active["langchain-ai/langgraph"].action == FeedbackAction.IRRELEVANT
+    assert response.text.count('aria-pressed="true"') == 1
+    assert "反馈已切换为“不相关”" in trigger["message"]
+
+
 def test_feedback_rejects_bad_token_without_writing(
     sample_fixture,
     data_store,

@@ -770,14 +770,51 @@ def create_app(
         recommendation = _select_recommendation(report, repo_full_name)
         if recommendation is None or recommendation.repository.full_name != repo_full_name:
             raise HTTPException(status_code=404, detail="recommendation not found")
-        event = create_feedback_event(
-            repo_full_name=repo_full_name,
-            action=parsed_action,
-            topics=recommendation.repository.topics,
-            report_date=parsed_date,
-        )
-        store.write_feedback_event(event, to_outbox=True)
-        cache.insert_feedback(event, recommendation)
+        with app.state.feedback_lock:
+            events = store.load_feedback_events(include_outbox=True)
+            retracted_event_ids = {
+                event.reverts_event_id
+                for event in events
+                if event.action == FeedbackAction.REVOKE
+                and event.reverts_event_id is not None
+            }
+            canonical_repo = canonical_fixture_repository_name(repo_full_name)
+            active_events = [
+                event
+                for event in events
+                if event.report_date == parsed_date
+                and event.action != FeedbackAction.REVOKE
+                and event.event_id not in retracted_event_ids
+                and canonical_fixture_repository_name(event.repo_full_name) == canonical_repo
+            ]
+            selected = active_events[-1] if active_events else None
+            cancel_selected = selected is not None and selected.action == parsed_action
+
+            for active_event in active_events:
+                store.write_feedback_event(
+                    create_feedback_retraction(active_event),
+                    to_outbox=True,
+                )
+            if not cancel_selected:
+                event = create_feedback_event(
+                    repo_full_name=repo_full_name,
+                    action=parsed_action,
+                    topics=recommendation.repository.topics,
+                    report_date=parsed_date,
+                )
+                store.write_feedback_event(event, to_outbox=True)
+            rebuild_cache(store, resolved_database)
+
+        action_label = FEEDBACK_ACTION_LABELS[parsed_action]
+        if cancel_selected:
+            trigger_name = "radar:feedbackRevoked"
+            message = f"{repo_full_name} · “{action_label}”反馈已取消"
+        elif selected is not None:
+            trigger_name = "radar:feedbackSaved"
+            message = f"{repo_full_name} · 反馈已切换为“{action_label}”"
+        else:
+            trigger_name = "radar:feedbackSaved"
+            message = f"{repo_full_name} · 反馈已保存到本地"
         if request.headers.get("HX-Request") != "true":
             return RedirectResponse(
                 url=f"/?repo={quote(repo_full_name, safe='')}",
@@ -791,8 +828,8 @@ def create_app(
         )
         response.headers["HX-Trigger"] = json.dumps(
             {
-                "radar:feedbackSaved": {
-                    "message": f"{repo_full_name} · 反馈已保存到本地",
+                trigger_name: {
+                    "message": message,
                     "pending": context["pending_sync"],
                     "configured": context["sync_configured"],
                     "label": context["sync_label"],

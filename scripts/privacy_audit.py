@@ -16,6 +16,7 @@ SECRET_PATTERNS = {
 }
 PRIVATE_PATH_PARTS = {"reports", "snapshots", "feedback", "outbox", "profile"}
 ALLOWED_PRIVATE_FIXTURES = (Path("examples/fixtures"), Path("src/ai_repo_radar/fixtures"))
+ALLOWED_PUBLIC_ARTIFACTS = (Path("docs/ui-v4/routes/feedback"),)
 
 
 def tracked_files() -> list[Path]:
@@ -34,7 +35,14 @@ def audit(paths: list[Path]) -> list[str]:
         allowed_fixture = any(
             relative.is_relative_to(directory) for directory in ALLOWED_PRIVATE_FIXTURES
         )
-        if any(part in PRIVATE_PATH_PARTS for part in relative.parts) and not allowed_fixture:
+        allowed_public_artifact = any(
+            relative.is_relative_to(directory) for directory in ALLOWED_PUBLIC_ARTIFACTS
+        )
+        if (
+            any(part in PRIVATE_PATH_PARTS for part in relative.parts)
+            and not allowed_fixture
+            and not allowed_public_artifact
+        ):
             findings.append(f"private data path is tracked: {relative.as_posix()}")
         if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".sqlite3", ".db"}:
             continue

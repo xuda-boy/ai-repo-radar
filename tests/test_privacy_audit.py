@@ -37,3 +37,13 @@ def test_privacy_audit_allows_public_fixture(tmp_path, monkeypatch) -> None:
     fixture.write_text('{"fixture": true}', encoding="utf-8")
 
     assert module.audit([fixture]) == []
+
+
+def test_privacy_audit_allows_public_feedback_route_artifacts(tmp_path, monkeypatch) -> None:
+    module = _module()
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    report = tmp_path / "docs" / "ui-v4" / "routes" / "feedback" / "UI_QA_REPORT.md"
+    report.parent.mkdir(parents=True)
+    report.write_text("public sample UI audit", encoding="utf-8")
+
+    assert module.audit([report]) == []
