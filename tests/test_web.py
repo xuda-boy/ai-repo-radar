@@ -477,6 +477,82 @@ def test_selecting_different_feedback_replaces_previous_active_choice(
     assert "反馈已切换为“不相关”" in trigger["message"]
 
 
+def test_save_coexists_with_preference_and_each_axis_toggles_independently(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    client = _client(sample_fixture, data_store, radar_config, tmp_path)
+    headers = {"HX-Request": "true", "Origin": "http://127.0.0.1:8765"}
+    base_payload = {
+        "csrf_token": client.app.state.csrf_token,
+        "repo_full_name": "langchain-ai/langgraph",
+        "report_date": sample_fixture.report_date.isoformat(),
+    }
+
+    client.post(
+        "/feedback",
+        data={**base_payload, "action": "more_like"},
+        headers=headers,
+    )
+    saved_with_preference = client.post(
+        "/feedback",
+        data={**base_payload, "action": "save"},
+        headers=headers,
+    )
+
+    active = client.app.state.cache.feedback_events_for_report(sample_fixture.report_date)
+    active_actions = {
+        event.action for event in active["langchain-ai/langgraph"]
+    }
+    assert active_actions == {FeedbackAction.MORE_LIKE, FeedbackAction.SAVE}
+    assert saved_with_preference.text.count('aria-pressed="true"') == 2
+    assert saved_with_preference.text.count('class="feedback-action selected"') == 2
+    assert "当前已选：更多此类、收藏" in saved_with_preference.text
+    assert "langchain-ai/langgraph" in client.get("/saved").text
+
+    switched_preference = client.post(
+        "/feedback",
+        data={**base_payload, "action": "irrelevant"},
+        headers=headers,
+    )
+    active = client.app.state.cache.feedback_events_for_report(sample_fixture.report_date)
+    active_actions = {
+        event.action for event in active["langchain-ai/langgraph"]
+    }
+    assert active_actions == {FeedbackAction.SAVE, FeedbackAction.IRRELEVANT}
+    assert switched_preference.text.count('aria-pressed="true"') == 2
+    assert "当前已选：收藏、不相关" in switched_preference.text
+    assert "langchain-ai/langgraph" in client.get("/saved").text
+
+    cancelled_save = client.post(
+        "/feedback",
+        data={**base_payload, "action": "save"},
+        headers=headers,
+    )
+    active = client.app.state.cache.feedback_events_for_report(sample_fixture.report_date)
+    assert [
+        event.action for event in active["langchain-ai/langgraph"]
+    ] == [FeedbackAction.IRRELEVANT]
+    assert cancelled_save.text.count('aria-pressed="true"') == 1
+    assert "当前已选：不相关" in cancelled_save.text
+    assert "还没有收藏项目" in client.get("/saved").text
+
+    events = data_store.load_feedback_events()
+    originals = [event for event in events if event.action != FeedbackAction.REVOKE]
+    retractions = [event for event in events if event.action == FeedbackAction.REVOKE]
+    assert [event.action for event in originals] == [
+        FeedbackAction.MORE_LIKE,
+        FeedbackAction.SAVE,
+        FeedbackAction.IRRELEVANT,
+    ]
+    assert {event.reverts_event_id for event in retractions} == {
+        originals[0].event_id,
+        originals[1].event_id,
+    }
+
+
 def test_feedback_rejects_bad_token_without_writing(
     sample_fixture,
     data_store,

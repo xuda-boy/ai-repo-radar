@@ -630,8 +630,12 @@ def create_app(
         report: DailyReport,
         recommendation: Recommendation,
     ) -> dict[str, object]:
-        feedback = cache.feedback_for_report(report.report_date).get(
+        feedback_events = cache.feedback_events_for_report(report.report_date).get(
             recommendation.repository.full_name
+        ) or ()
+        active_actions = {event.action for event in feedback_events}
+        selected_actions = tuple(
+            action for action, _label, _icon in FEEDBACK_ACTIONS if action in active_actions
         )
         context = {
             "request": request,
@@ -639,9 +643,9 @@ def create_app(
             "recommendation": recommendation,
             "view": _recommendation_view(recommendation, report),
             "feedback_actions": FEEDBACK_ACTIONS,
-            "selected_action": feedback.action if feedback else None,
-            "selected_action_label": (
-                FEEDBACK_ACTION_LABELS[feedback.action] if feedback else None
+            "selected_actions": selected_actions,
+            "selected_action_labels": "、".join(
+                FEEDBACK_ACTION_LABELS[action] for action in selected_actions
             ),
             "csrf_token": app.state.csrf_token,
         }
@@ -790,10 +794,18 @@ def create_app(
                 and event.event_id not in retracted_event_ids
                 and canonical_fixture_repository_name(event.repo_full_name) == canonical_repo
             ]
-            selected = active_events[-1] if active_events else None
+            if parsed_action == FeedbackAction.SAVE:
+                target_events = [
+                    event for event in active_events if event.action == FeedbackAction.SAVE
+                ]
+            else:
+                target_events = [
+                    event for event in active_events if event.action != FeedbackAction.SAVE
+                ]
+            selected = target_events[-1] if target_events else None
             cancel_selected = selected is not None and selected.action == parsed_action
 
-            for active_event in active_events:
+            for active_event in target_events:
                 store.write_feedback_event(
                     create_feedback_retraction(active_event),
                     to_outbox=True,

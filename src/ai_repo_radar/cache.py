@@ -275,7 +275,10 @@ class CacheRepository:
             for row in rows
         ]
 
-    def feedback_for_report(self, report_date: date) -> dict[str, FeedbackEvent]:
+    def feedback_events_for_report(
+        self,
+        report_date: date,
+    ) -> dict[str, tuple[FeedbackEvent, ...]]:
         with closing(self._connection()) as connection:
             rows = connection.execute(
                 "SELECT payload_json FROM feedback_events ORDER BY created_at"
@@ -286,15 +289,22 @@ class CacheRepository:
             for event in events
             if event.action == FeedbackAction.REVOKE and event.reverts_event_id is not None
         }
-        result: dict[str, FeedbackEvent] = {}
+        grouped: dict[str, list[FeedbackEvent]] = {}
         for event in events:
             if (
                 event.report_date == report_date
                 and event.action != FeedbackAction.REVOKE
                 and event.event_id not in revoked_event_ids
             ):
-                result[canonical_fixture_repository_name(event.repo_full_name)] = event
-        return result
+                repo_full_name = canonical_fixture_repository_name(event.repo_full_name)
+                grouped.setdefault(repo_full_name, []).append(event)
+        return {repo: tuple(repo_events) for repo, repo_events in grouped.items()}
+
+    def feedback_for_report(self, report_date: date) -> dict[str, FeedbackEvent]:
+        return {
+            repo: events[-1]
+            for repo, events in self.feedback_events_for_report(report_date).items()
+        }
 
     def insert_feedback(self, event: FeedbackEvent, recommendation: Recommendation | None) -> None:
         with closing(self._connection()) as connection:

@@ -139,6 +139,52 @@ def test_rebuild_excludes_revoked_save_but_preserves_feedback_history(
     )
 
 
+def test_feedback_projection_preserves_save_and_preference_axes(
+    sample_fixture,
+    data_store,
+    radar_config,
+    tmp_path,
+) -> None:
+    result = run_pipeline(
+        sample_fixture.repositories,
+        store=data_store,
+        config=radar_config,
+        report_date=sample_fixture.report_date,
+        readmes=sample_fixture.readmes,
+        enhancer=FixtureEnhancer(sample_fixture.enhancements),
+        generated_at=sample_fixture.generated_at,
+    )
+    selected = result.report.recommendations[0]
+    more_like = create_feedback_event(
+        repo_full_name=selected.repository.full_name,
+        action=FeedbackAction.MORE_LIKE,
+        topics=selected.repository.topics,
+        created_at=sample_fixture.generated_at,
+        report_date=result.report.report_date,
+    )
+    save = create_feedback_event(
+        repo_full_name=selected.repository.full_name,
+        action=FeedbackAction.SAVE,
+        topics=selected.repository.topics,
+        created_at=sample_fixture.generated_at + timedelta(minutes=1),
+        report_date=result.report.report_date,
+    )
+    data_store.write_feedback_event(more_like)
+    data_store.write_feedback_event(save)
+
+    database = rebuild_cache(data_store, tmp_path / "cache.sqlite3")
+    repository = CacheRepository(database)
+
+    active = repository.feedback_events_for_report(result.report.report_date)
+    assert [event.action for event in active[selected.repository.full_name]] == [
+        FeedbackAction.MORE_LIKE,
+        FeedbackAction.SAVE,
+    ]
+    assert repository.feedback_for_report(result.report.report_date)[
+        selected.repository.full_name
+    ] == save
+
+
 def test_normal_daily_report_is_immutable_by_default(
     sample_fixture,
     data_store,
