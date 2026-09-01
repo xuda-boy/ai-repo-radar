@@ -1,7 +1,7 @@
 <section class="feedback-bar" id="feedback-bar" aria-label="推荐反馈">
   <div class="feedback-copy">
     <strong>这条推荐准确吗？</strong>
-    <span>{% if selected_action %}已选择 · 再次点击取消，选择其他项会替换{% else %}反馈从明天开始生效{% endif %}</span>
+    <span{% if selected_action %} class="feedback-selection-copy"{% endif %}>{% if selected_action %}当前已选：{{ selected_action_label }} · 再次点击可取消{% else %}反馈从明天开始生效{% endif %}</span>
   </div>
   <div class="feedback-actions">
     {% for action, label, icon in feedback_actions %}
@@ -10,9 +10,10 @@
         <input type="hidden" name="repo_full_name" value="{{ recommendation.repository.full_name }}">
         <input type="hidden" name="report_date" value="{{ report.report_date.isoformat() }}">
         <input type="hidden" name="action" value="{{ action.value }}">
-        <button class="feedback-action{% if loop.first %} primary{% endif %}" type="submit" aria-pressed="{{ 'true' if selected_action == action else 'false' }}" title="{{ '再次点击取消此反馈' if selected_action == action else label }}">
+        <button class="feedback-action{% if selected_action == action %} selected{% endif %}" type="submit" aria-pressed="{{ 'true' if selected_action == action else 'false' }}" aria-label="{{ label }}{% if selected_action == action %}，已选择，再次点击取消{% endif %}" title="{{ '再次点击取消此反馈' if selected_action == action else label }}">
           {% if icon == 'arrow' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>{% elif icon == 'bookmark' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3-5 3V4Z"/></svg>{% elif icon == 'minus' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9"/></svg>{% endif %}
           {{ label }}
+          {% if selected_action == action %}<span class="feedback-selected-mark">已选</span>{% endif %}
         </button>
       </form>
     {% endfor %}

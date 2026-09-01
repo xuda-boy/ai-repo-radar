@@ -640,6 +640,9 @@ def create_app(
             "view": _recommendation_view(recommendation, report),
             "feedback_actions": FEEDBACK_ACTIONS,
             "selected_action": feedback.action if feedback else None,
+            "selected_action_label": (
+                FEEDBACK_ACTION_LABELS[feedback.action] if feedback else None
+            ),
             "csrf_token": app.state.csrf_token,
         }
         context.update(sync_context(request))

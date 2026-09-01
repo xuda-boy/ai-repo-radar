@@ -384,6 +384,9 @@ def test_feedback_is_saved_locally_and_immediately_visible_in_saved_page(
 
     assert response.status_code == 200
     assert 'aria-pressed="true"' in response.text
+    assert response.text.count('class="feedback-action selected"') == 1
+    assert "当前已选：收藏" in response.text
+    assert '<span class="feedback-selected-mark">已选</span>' in response.text
     assert "radar:feedbackSaved" in response.headers["HX-Trigger"]
     assert len(data_store.pending_feedback_events()) == 1
     assert saved.status_code == 200
@@ -422,6 +425,8 @@ def test_repeating_selected_feedback_cancels_without_duplicate_event(
     assert retractions[0].reverts_event_id == originals[0].event_id
     assert client.app.state.cache.feedback_for_report(sample_fixture.report_date) == {}
     assert 'aria-pressed="true"' not in second.text
+    assert 'class="feedback-action selected"' not in second.text
+    assert "feedback-selected-mark" not in second.text
     assert "反馈已取消" in trigger["message"]
     assert "还没有收藏项目" in client.get("/saved").text
 
@@ -467,6 +472,8 @@ def test_selecting_different_feedback_replaces_previous_active_choice(
     assert retractions[0].reverts_event_id == originals[0].event_id
     assert active["langchain-ai/langgraph"].action == FeedbackAction.IRRELEVANT
     assert response.text.count('aria-pressed="true"') == 1
+    assert response.text.count('class="feedback-action selected"') == 1
+    assert "当前已选：不相关" in response.text
     assert "反馈已切换为“不相关”" in trigger["message"]
 
 
