@@ -8,6 +8,7 @@ from ai_repo_radar.models import FeedbackAction, SyncStatus
 from ai_repo_radar.storage import JsonDataStore
 from ai_repo_radar.sync import (
     PRIVATE_REPOSITORY_SENTINEL,
+    publish_private_facts,
     pull_private_data_safely,
     sync_private_data_safely,
 )
@@ -138,3 +139,44 @@ def test_pull_private_data_updates_facts_without_publishing_outbox(
     )
     assert store.pending_feedback_events() == [event]
     assert not _status(repository)
+
+
+def test_publish_private_facts_rebases_after_a_concurrent_remote_push(tmp_path) -> None:
+    repository, remote, _store = _private_repository(tmp_path)
+    publisher = tmp_path / "publisher"
+    subprocess.run(
+        ["git", "clone", "--branch", "main", str(remote), str(publisher)],
+        check=True,
+        capture_output=True,
+    )
+    _git(publisher, "config", "user.name", "Concurrent Publisher")
+    _git(publisher, "config", "user.email", "publisher@example.com")
+
+    report = repository / "data" / "reports" / "2026" / "09" / "03.json"
+    report.parent.mkdir(parents=True)
+    report.write_text('{"report_date":"2026-09-03"}\n', encoding="utf-8")
+
+    marker = publisher / "README.md"
+    marker.write_text("concurrent workflow change\n", encoding="utf-8")
+    _git(publisher, "add", "README.md")
+    _git(publisher, "commit", "-m", "docs: concurrent workflow change")
+    _git(publisher, "push", "origin", "main")
+
+    changed = publish_private_facts(
+        repository,
+        data_directory="data",
+        message="data: daily radar 2026-09-03",
+    )
+
+    assert changed is True
+    assert not _status(repository)
+    assert not subprocess.run(
+        ["git", "--git-dir", str(remote), "show", "main:data/reports/2026/09/03.json"],
+        check=False,
+        capture_output=True,
+    ).returncode
+    assert not subprocess.run(
+        ["git", "--git-dir", str(remote), "show", "main:README.md"],
+        check=False,
+        capture_output=True,
+    ).returncode

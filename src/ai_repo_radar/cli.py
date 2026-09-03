@@ -20,7 +20,12 @@ from ai_repo_radar.providers.github import GitHubClient
 from ai_repo_radar.providers.minimax import MiniMaxClient
 from ai_repo_radar.sample_data import is_fixture_report, load_sample_fixture
 from ai_repo_radar.storage import JsonDataStore
-from ai_repo_radar.sync import private_repository_root, sync_private_data_safely
+from ai_repo_radar.sync import (
+    GitSyncError,
+    private_repository_root,
+    publish_private_facts,
+    sync_private_data_safely,
+)
 
 app = typer.Typer(
     name="ai-repo-radar",
@@ -245,6 +250,27 @@ def sync_data(
     console.print(
         f"[green]Synced:[/green] {result.synced_events} feedback event(s) on {result.branch}"
     )
+
+
+@app.command("publish-facts")
+def publish_facts_command(
+    repository: Path = typer.Option(..., help="Private repository checkout root."),
+    data_directory: str = typer.Option("data", help="Fact directory relative to the checkout."),
+    message: str = typer.Option(..., help="Git commit message for the generated facts."),
+) -> None:
+    """Commit generated facts and retry a concurrent, non-conflicting remote update."""
+    try:
+        changed = publish_private_facts(
+            repository,
+            data_directory=data_directory,
+            message=message,
+        )
+    except GitSyncError as error:
+        raise typer.BadParameter(str(error)) from error
+    if changed:
+        console.print("[green]Daily JSON facts committed to the private repository.[/green]")
+    else:
+        console.print("[cyan]No new private facts to commit.[/cyan]")
 
 
 @app.command()

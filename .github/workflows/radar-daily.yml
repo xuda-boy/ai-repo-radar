@@ -10,7 +10,7 @@ on:
       code_ref:
         description: Immutable public release tag.
         required: false
-        default: v0.2.2
+        default: v0.2.3
         type: string
       force:
         description: Replace today's normal report after explicit manual review.
@@ -91,21 +91,16 @@ jobs:
           fi
           uv run ai-repo-radar "${args[@]}"
 
-      - name: Commit append-only facts
+      - name: Commit and publish append-only facts
         working-directory: private-data
-        env:
-          DATA_DIRECTORY: ${{ inputs.data_directory }}
         run: |
           git config user.name "ai-repo-radar[bot]"
           git config user.email "ai-repo-radar[bot]@users.noreply.github.com"
-          git add -- "$DATA_DIRECTORY"
-          if git diff --cached --quiet; then
-            echo "No new private facts to commit." >> "$GITHUB_STEP_SUMMARY"
-          else
-            git commit -m "data: daily radar $(TZ=Asia/Shanghai date +%F)"
-            git push
-            echo "Daily JSON facts committed to the private repository." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          uv run --project "${{ github.workspace }}/app" ai-repo-radar publish-facts \
+            --repository "${{ github.workspace }}/private-data" \
+            --data-directory "${{ inputs.data_directory }}" \
+            --message "data: daily radar $(TZ=Asia/Shanghai date +%F)"
+          echo "Private facts publication completed with concurrent-push recovery." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Explain manual recovery
         if: always()

@@ -78,6 +78,51 @@ def _remote_branch_exists(repository: Path, branch: str) -> bool:
     return result.returncode == 0
 
 
+def publish_private_facts(
+    repository: Path,
+    *,
+    data_directory: str,
+    message: str,
+    max_attempts: int = 3,
+) -> bool:
+    """Commit generated facts and survive a concurrent non-conflicting remote push."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1")
+    root = repository.expanduser().resolve()
+    if not (root / PRIVATE_REPOSITORY_SENTINEL).is_file():
+        raise GitSyncError(
+            f"repository is not marked with {PRIVATE_REPOSITORY_SENTINEL}"
+        )
+    branch = _git(root, "branch", "--show-current").stdout.strip()
+    if not branch:
+        raise GitSyncError("private data repository is in detached HEAD state")
+    if _git(root, "remote", "get-url", "origin", check=False).returncode != 0:
+        raise GitSyncError("private data repository has no origin remote")
+
+    data_path = (root / data_directory).resolve()
+    try:
+        relative_data_path = data_path.relative_to(root).as_posix()
+    except ValueError as error:
+        raise GitSyncError("data directory must stay inside the private repository") from error
+    if _git(root, "diff", "--cached", "--quiet", check=False).returncode != 0:
+        raise GitSyncError("private data repository already has staged changes")
+
+    _git(root, "add", "--", relative_data_path)
+    if _git(root, "diff", "--cached", "--quiet", check=False).returncode == 0:
+        return False
+    _git(root, "commit", "-m", message)
+
+    for attempt in range(1, max_attempts + 1):
+        pushed = _git(root, "push", "origin", f"HEAD:{branch}", check=False)
+        if pushed.returncode == 0:
+            return True
+        if attempt == max_attempts:
+            raise GitSyncError(f"git push failed after {max_attempts} attempts")
+        _git(root, "fetch", "--prune", "origin", branch)
+        _git(root, "rebase", f"origin/{branch}")
+    raise AssertionError("unreachable")
+
+
 def sync_private_data(store: JsonDataStore) -> SyncResult:
     repository = private_repository_root(store.root)
     if repository is None:

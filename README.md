@@ -4,7 +4,7 @@
 
 English: a local-first, explainable AI GitHub repository radar with deterministic ranking, optional MiniMax-M3 content enrichment, an append-only private data repository, and a FastAPI + Jinja + HTMX dashboard.
 
-> v0.2.2 已完成反馈撤回、Dashboard 自动拉取、定时任务幂等补跑，以及 MiniMax 异常响应的自动重试与部分结果保留。
+> v0.2.3 已完成新版 Dashboard、可撤回的双轴反馈、定时任务幂等补跑，以及并发推送自动恢复。
 
 ![AI Repo Radar Modern Discovery Dashboard](docs/assets/dashboard.png)
 

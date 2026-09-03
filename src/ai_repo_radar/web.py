@@ -383,7 +383,7 @@ def create_app(
 
     app = FastAPI(
         title="AI Repo Radar",
-        version="0.2.2",
+        version="0.2.3",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
